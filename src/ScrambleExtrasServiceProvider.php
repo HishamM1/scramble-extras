@@ -1,0 +1,59 @@
+<?php
+
+namespace PawelJadanowski\ScrambleExtras;
+
+use Dedoc\Scramble\Configuration\ParametersExtractors;
+use Dedoc\Scramble\Scramble;
+use Illuminate\Support\ServiceProvider;
+use PawelJadanowski\ScrambleExtras\Console\Commands\ClearSchemaCacheCommand;
+
+/**
+ * Boots scramble-extras's integrations into Scramble:
+ *  - Registers TypeToSchema/Operation/Infer extensions on Scramble's global
+ *    extension list, so they participate in the same pipeline as user-defined
+ *    extensions registered via config/scramble.php.
+ *  - Prepends a Spatie Data parameter extractor so request bodies typed with
+ *    Data subclasses produce $ref'd component schemas.
+ *  - Binds the SchemaCache singleton (file-backed, per-class mtime
+ *    invalidation) and registers the cache:clear artisan command.
+ */
+class ScrambleExtrasServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->app->singleton(SchemaCache::class, function () {
+            return new SchemaCache(
+                storage_path('framework/cache/scramble-extras/schemas.php'),
+            );
+        });
+    }
+
+    public function boot(): void
+    {
+        $extensions = [
+            LaravelDataTypeToSchemaExtension::class,
+            PaginatedDataCollectionTypeToSchemaExtension::class,
+            CursorPaginatedDataCollectionTypeToSchemaExtension::class,
+            DataCollectionTypeToSchemaExtension::class,
+            LaravelDataReturnTypeExtension::class,
+        ];
+
+        // Only register the query-builder extension when the (optional) Spatie
+        // package is actually installed.
+        if (class_exists(\Spatie\QueryBuilder\QueryBuilder::class)) {
+            $extensions[] = QueryBuilderOperationExtension::class;
+        }
+
+        Scramble::registerExtensions($extensions);
+
+        Scramble::configure()->withParametersExtractors(function (ParametersExtractors $extractors) {
+            $extractors->prepend(LaravelDataParametersExtractor::class);
+        });
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                ClearSchemaCacheCommand::class,
+            ]);
+        }
+    }
+}
