@@ -3,6 +3,7 @@
 namespace PawelJadanowski\ScrambleExtras\Tests\Unit;
 
 use PawelJadanowski\ScrambleExtras\SchemaCache;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 class SchemaCacheTest extends TestCase
@@ -24,7 +25,8 @@ class SchemaCacheTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_put_does_not_write_until_flush(): void
+    #[Test]
+    public function put_does_not_write_until_flush(): void
     {
         $cache = new SchemaCache($this->path);
         $cache->put('Foo.out', ['mtime' => 1, 'deps' => [], 'array' => ['type' => 'object']]);
@@ -36,7 +38,8 @@ class SchemaCacheTest extends TestCase
         $this->assertFileExists($this->path);
     }
 
-    public function test_roundtrip_persists_entries(): void
+    #[Test]
+    public function roundtrip_persists_entries(): void
     {
         $cache = new SchemaCache($this->path);
         $entry = ['mtime' => 42, 'deps' => ['App\\Foo'], 'array' => ['type' => 'object']];
@@ -48,7 +51,8 @@ class SchemaCacheTest extends TestCase
         $this->assertSame($entry, $fresh->get('Foo.out'));
     }
 
-    public function test_signature_is_not_exposed_as_an_entry(): void
+    #[Test]
+    public function signature_is_not_exposed_as_an_entry(): void
     {
         $cache = new SchemaCache($this->path);
         $cache->put('Foo.out', ['mtime' => 1, 'deps' => [], 'array' => []]);
@@ -60,7 +64,8 @@ class SchemaCacheTest extends TestCase
         $this->assertNotNull($fresh->get('Foo.out'));
     }
 
-    public function test_clear_removes_file(): void
+    #[Test]
+    public function clear_removes_file(): void
     {
         $cache = new SchemaCache($this->path);
         $cache->put('Foo.out', ['mtime' => 1, 'deps' => [], 'array' => []]);
@@ -73,7 +78,8 @@ class SchemaCacheTest extends TestCase
         $this->assertNull($cache->get('Foo.out'));
     }
 
-    public function test_stale_signature_invalidates_cache(): void
+    #[Test]
+    public function stale_signature_invalidates_cache(): void
     {
         // Simulate a cache file written by an older/different signature.
         @mkdir(dirname($this->path), 0755, true);
@@ -90,7 +96,8 @@ class SchemaCacheTest extends TestCase
         $this->assertNull($cache->get('Foo.out'), 'A mismatched signature should discard the cache');
     }
 
-    public function test_flush_is_noop_when_not_dirty(): void
+    #[Test]
+    public function flush_is_noop_when_not_dirty(): void
     {
         $cache = new SchemaCache($this->path);
         $cache->flush();

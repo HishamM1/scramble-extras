@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Test suite runs on PHPUnit 12 and uses `#[Test]` attributes instead of the
+  `test` method-name prefix.
+- Added a CI status badge to the README.
+
 ## [0.2.0] - 2026-05-30
 
 ### Added

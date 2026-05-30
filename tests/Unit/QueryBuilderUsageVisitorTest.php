@@ -5,6 +5,7 @@ namespace PawelJadanowski\ScrambleExtras\Tests\Unit;
 use PawelJadanowski\ScrambleExtras\QueryBuilderUsageVisitor;
 use PhpParser\NodeTraverser;
 use PhpParser\ParserFactory;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 class QueryBuilderUsageVisitorTest extends TestCase
@@ -22,7 +23,8 @@ class QueryBuilderUsageVisitorTest extends TestCase
         return $visitor;
     }
 
-    public function test_detects_query_builder_for_and_model(): void
+    #[Test]
+    public function detects_query_builder_for_and_model(): void
     {
         $visitor = $this->visit('$q = QueryBuilder::for(User::class);');
 
@@ -30,14 +32,16 @@ class QueryBuilderUsageVisitorTest extends TestCase
         $this->assertSame('User', $visitor->modelClass);
     }
 
-    public function test_ignores_unrelated_code(): void
+    #[Test]
+    public function ignores_unrelated_code(): void
     {
         $visitor = $this->visit('$x = SomeOther::for(User::class)->allowedFilters(["name"]);');
 
         $this->assertFalse($visitor->found);
     }
 
-    public function test_extracts_string_and_allowed_filters(): void
+    #[Test]
+    public function extracts_string_and_allowed_filters(): void
     {
         $visitor = $this->visit(<<<'PHP'
         $q = QueryBuilder::for(User::class)
@@ -55,7 +59,8 @@ class QueryBuilderUsageVisitorTest extends TestCase
         $this->assertSame(['partial', 'exact', 'scope'], $kinds);
     }
 
-    public function test_extracts_sorts_includes_fields_and_default_sort(): void
+    #[Test]
+    public function extracts_sorts_includes_fields_and_default_sort(): void
     {
         $visitor = $this->visit(<<<'PHP'
         $q = QueryBuilder::for(User::class)
@@ -73,7 +78,8 @@ class QueryBuilderUsageVisitorTest extends TestCase
         $this->assertTrue($visitor->jsonPaginate);
     }
 
-    public function test_reads_doc_attributes_on_filter_entry(): void
+    #[Test]
+    public function reads_doc_attributes_on_filter_entry(): void
     {
         $visitor = $this->visit(<<<'PHP'
         $q = QueryBuilder::for(User::class)

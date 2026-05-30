@@ -5,6 +5,7 @@ namespace PawelJadanowski\ScrambleExtras\Tests\Feature;
 use Dedoc\Scramble\Generator;
 use Illuminate\Routing\Router;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UserController;
+use PHPUnit\Framework\Attributes\Test;
 use PawelJadanowski\ScrambleExtras\Tests\TestCase;
 
 class SchemaGenerationTest extends TestCase
@@ -28,7 +29,8 @@ class SchemaGenerationTest extends TestCase
         return is_array($result) ? $result : $result->toArray();
     }
 
-    public function test_data_class_becomes_a_component_schema(): void
+    #[Test]
+    public function data_class_becomes_a_component_schema(): void
     {
         $openApi = $this->generate();
 
@@ -41,7 +43,8 @@ class SchemaGenerationTest extends TestCase
         $this->assertSame('email', $schema['properties']['email']['format'] ?? null);
     }
 
-    public function test_hidden_property_is_absent_and_computed_present_in_output(): void
+    #[Test]
+    public function hidden_property_is_absent_and_computed_present_in_output(): void
     {
         $schema = $this->generate()['components']['schemas']['UserData'];
 
@@ -49,7 +52,8 @@ class SchemaGenerationTest extends TestCase
         $this->assertArrayHasKey('fullName', $schema['properties']);
     }
 
-    public function test_status_enum_property_emits_enum_values(): void
+    #[Test]
+    public function status_enum_property_emits_enum_values(): void
     {
         $schema = $this->generate()['components']['schemas']['UserData'];
         $status = $schema['properties']['status'];
@@ -62,7 +66,8 @@ class SchemaGenerationTest extends TestCase
         }
     }
 
-    public function test_data_collection_of_renders_array_items(): void
+    #[Test]
+    public function data_collection_of_renders_array_items(): void
     {
         $schema = $this->generate()['components']['schemas']['UserData'];
         $addresses = $schema['properties']['addresses'];
@@ -71,7 +76,8 @@ class SchemaGenerationTest extends TestCase
         $this->assertArrayHasKey('items', $addresses);
     }
 
-    public function test_request_body_uses_inlined_input_schema(): void
+    #[Test]
+    public function request_body_uses_inlined_input_schema(): void
     {
         $openApi = $this->generate();
 
@@ -94,7 +100,8 @@ class SchemaGenerationTest extends TestCase
         $this->assertArrayNotHasKey('fullName', $properties);
     }
 
-    public function test_paginated_collection_response_envelope(): void
+    #[Test]
+    public function paginated_collection_response_envelope(): void
     {
         $openApi = $this->generate();
 
@@ -109,7 +116,8 @@ class SchemaGenerationTest extends TestCase
         $this->assertArrayHasKey('links', $properties);
     }
 
-    public function test_query_builder_parameters_are_documented(): void
+    #[Test]
+    public function query_builder_parameters_are_documented(): void
     {
         $openApi = $this->generate();
 
@@ -124,7 +132,8 @@ class SchemaGenerationTest extends TestCase
         $this->assertContains('page[size]', $names);
     }
 
-    public function test_exact_enum_filter_emits_enum_schema(): void
+    #[Test]
+    public function exact_enum_filter_emits_enum_schema(): void
     {
         $openApi = $this->generate();
 

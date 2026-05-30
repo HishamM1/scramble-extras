@@ -7,11 +7,13 @@ use PawelJadanowski\ScrambleExtras\CachedSchemaType;
 use PawelJadanowski\ScrambleExtras\ConstrainedNumberType;
 use PawelJadanowski\ScrambleExtras\DataClassNameRegistry;
 use PawelJadanowski\ScrambleExtras\PatternedStringType;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 class SupportTypesTest extends TestCase
 {
-    public function test_constrained_number_type_serializes_exclusive_bounds(): void
+    #[Test]
+    public function constrained_number_type_serializes_exclusive_bounds(): void
     {
         $type = (new ConstrainedNumberType('integer'))
             ->setExclusiveMin(0)
@@ -26,7 +28,8 @@ class SupportTypesTest extends TestCase
         $this->assertSame(5, $array['multipleOf']);
     }
 
-    public function test_constrained_number_type_omits_null_bounds(): void
+    #[Test]
+    public function constrained_number_type_omits_null_bounds(): void
     {
         $array = (new ConstrainedNumberType('number'))->toArray();
 
@@ -34,21 +37,24 @@ class SupportTypesTest extends TestCase
         $this->assertArrayNotHasKey('multipleOf', $array);
     }
 
-    public function test_patterned_string_type_renders_pattern(): void
+    #[Test]
+    public function patterned_string_type_renders_pattern(): void
     {
         $array = (new PatternedStringType)->setPattern('^[a-z]+$')->toArray();
 
         $this->assertSame('^[a-z]+$', $array['pattern']);
     }
 
-    public function test_patterned_string_type_without_pattern_has_no_key(): void
+    #[Test]
+    public function patterned_string_type_without_pattern_has_no_key(): void
     {
         $array = (new PatternedStringType)->toArray();
 
         $this->assertArrayNotHasKey('pattern', $array);
     }
 
-    public function test_cached_schema_type_returns_cached_array(): void
+    #[Test]
+    public function cached_schema_type_returns_cached_array(): void
     {
         $cached = ['type' => 'object', 'properties' => ['id' => ['type' => 'integer']], 'required' => ['id']];
 
@@ -58,7 +64,8 @@ class SupportTypesTest extends TestCase
         $this->assertSame(['id'], $type->required);
     }
 
-    public function test_cached_schema_type_set_description_propagates_to_array(): void
+    #[Test]
+    public function cached_schema_type_set_description_propagates_to_array(): void
     {
         $type = new CachedSchemaType(['type' => 'object']);
         $type->setDescription('Hello');
@@ -66,7 +73,8 @@ class SupportTypesTest extends TestCase
         $this->assertSame('Hello', $type->toArray()['description']);
     }
 
-    public function test_cached_schema_type_nullable_adds_null_to_type(): void
+    #[Test]
+    public function cached_schema_type_nullable_adds_null_to_type(): void
     {
         $type = new CachedSchemaType(['type' => 'object']);
         $type->nullable(true);
@@ -74,7 +82,8 @@ class SupportTypesTest extends TestCase
         $this->assertSame(['object', 'null'], $type->toArray()['type']);
     }
 
-    public function test_data_class_name_registry_resolves_short_name(): void
+    #[Test]
+    public function data_class_name_registry_resolves_short_name(): void
     {
         DataClassNameRegistry::reset();
         DataClassNameRegistry::register(StringType::class);

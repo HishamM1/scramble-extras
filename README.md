@@ -1,5 +1,7 @@
 # scramble-extras
 
+[![tests](https://github.com/pjadanowski/scramble-extras/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/pjadanowski/scramble-extras/actions/workflows/tests.yml)
+
 A free, open Laravel package that adds full **Spatie ecosystem** support to [dedoc/scramble](https://github.com/dedoc/scramble) — covering everything `scramble-pro` does for the integrations most projects actually need.
 
 ## Features
