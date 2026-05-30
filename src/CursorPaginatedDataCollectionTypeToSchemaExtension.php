@@ -50,7 +50,7 @@ class CursorPaginatedDataCollectionTypeToSchemaExtension extends TypeToSchemaExt
     public function toResponse(Type $type): ?Response
     {
         return Response::make(200)
-            ->setDescription('Cursor-paginated set of data')
+            ->description('Cursor-paginated set of data')
             ->setContent('application/json', Schema::fromType($this->toSchema($type)));
     }
 

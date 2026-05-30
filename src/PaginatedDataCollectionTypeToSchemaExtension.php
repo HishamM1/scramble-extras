@@ -48,7 +48,7 @@ class PaginatedDataCollectionTypeToSchemaExtension extends TypeToSchemaExtension
         $schema = $this->toSchema($type);
 
         return Response::make(200)
-            ->setDescription('Paginated set of data')
+            ->description('Paginated set of data')
             ->setContent('application/json', Schema::fromType($schema));
     }
 
