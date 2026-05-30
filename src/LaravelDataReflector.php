@@ -23,7 +23,6 @@ use ReflectionUnionType;
 use Spatie\LaravelData\Attributes\Computed;
 use Spatie\LaravelData\Attributes\DataCollectionOf;
 use Spatie\LaravelData\Attributes\Hidden;
-use Spatie\LaravelData\Contracts\BaseData;
 use Spatie\LaravelData\Optional;
 use Spatie\LaravelData\Lazy;
 
@@ -110,6 +109,11 @@ class LaravelDataReflector
         }
 
         if (! app()->bound(SchemaCache::class)) {
+            return null;
+        }
+
+        $config = app()->bound('config') ? app('config') : null;
+        if ($config !== null && ! $config->get('scramble-extras.cache.enabled', true)) {
             return null;
         }
 

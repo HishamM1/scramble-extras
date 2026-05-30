@@ -28,6 +28,8 @@
         "spatie/laravel-data": "^4.0"
     },
     "require-dev": {
+        "orchestra/testbench": "^9.0 || ^10.0",
+        "phpunit/phpunit": "^10.5 || ^11.0",
         "spatie/laravel-query-builder": "^6.0"
     },
     "suggest": {
@@ -37,6 +39,14 @@
         "psr-4": {
             "PawelJadanowski\\ScrambleExtras\\": "src/"
         }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PawelJadanowski\\ScrambleExtras\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
     },
     "extra": {
         "laravel": {

@@ -22,7 +22,37 @@ A free, open Laravel package that adds full **Spatie ecosystem** support to [ded
 composer require pjadanowski/scramble-extras
 ```
 
-The service provider auto-registers all extensions via Laravel's package discovery — no config touching needed.
+The service provider auto-registers all extensions via Laravel's package discovery — no config touching needed. Install [`dedoc/scramble`](https://github.com/dedoc/scramble) itself if you haven't already, and you're done: your `Data` classes start showing up in the generated docs.
+
+To document `allowedFilters/Sorts/Includes/Fields` you also need `spatie/laravel-query-builder` (the query-builder extension self-registers only when that package is present):
+
+```bash
+composer require spatie/laravel-query-builder
+```
+
+## Configuration
+
+There's nothing to configure to get started. If you want to tune the cache, publish the config:
+
+```bash
+php artisan vendor:publish --tag=scramble-extras-config
+```
+
+```php
+// config/scramble-extras.php
+return [
+    'cache' => [
+        'enabled' => env('SCRAMBLE_EXTRAS_CACHE', true),
+        'path' => env('SCRAMBLE_EXTRAS_CACHE_PATH'), // null = storage/framework/cache/scramble-extras/schemas.php
+    ],
+];
+```
+
+Or just set the env vars — e.g. disable the cache while iterating on `Data` classes locally:
+
+```dotenv
+SCRAMBLE_EXTRAS_CACHE=false
+```
 
 ## How it plugs in
 
@@ -35,13 +65,19 @@ You don't have to add anything to `config/scramble.php`.
 
 ## Cache
 
-The package transparently caches built schemas in `storage/framework/cache/scramble-extras/schemas.php`. Cache invalidates per-class on `filemtime()` change, so editing a `Data` class auto-rebuilds just that class on the next export.
+The package transparently caches built schemas in `storage/framework/cache/scramble-extras/schemas.php`. Cache invalidates per-class on `filemtime()` change, so editing a `Data` class auto-rebuilds just that class on the next export. The cache file also carries a signature derived from the installed Scramble version, so it self-invalidates after a `dedoc/scramble` upgrade — no manual clear required.
+
+Writes are deferred: a full export builds every schema in memory and persists the cache **once** on shutdown, rather than rewriting the file per class.
 
 To wipe manually:
 
 ```bash
 php artisan scramble-extras:cache:clear
 ```
+
+## Request bodies vs responses
+
+A `Data` class is often used as both a response and a request body, and the two projections differ — `#[Computed]` is output-only, `#[Hidden]` is input-only, and `Optional` / `#[MapInputName]` change required-ness and field names. To keep both faithful, **request body schemas are inlined** (rendered directly on the operation) instead of `$ref`-ing the shared output component. Response schemas remain reusable `$ref` components.
 
 ## What's NOT covered (yet)
 
@@ -50,6 +86,15 @@ Long-tail features still on the roadmap:
 - `multipart/form-data` request bodies for `Data` classes containing `UploadedFile` properties
 - Sparse fieldsets rendered as proper enum array params (currently emitted as `string` with allowed values in the description)
 - Polymorphic `Data` with discriminator schemas
+
+## Testing
+
+```bash
+composer install
+composer test
+```
+
+The suite covers the attribute → OpenAPI translation, the query-builder AST extraction, the schema cache, the return-type inference, and a full end-to-end Scramble generation pass (request bodies, response `$ref`s, paginated envelopes, and query parameters) booted with `orchestra/testbench`.
 
 ## License
 

@@ -2,6 +2,8 @@
 
 namespace PawelJadanowski\ScrambleExtras;
 
+use Composer\InstalledVersions;
+
 /**
  * File-based cache for fully-built Data class schemas. Persists across runs of
  * `php artisan scramble:export` so we don't re-reflect every Data class and
@@ -13,15 +15,31 @@ namespace PawelJadanowski\ScrambleExtras;
  *       'deps'  => ['App\\Data\\JobData', ...],   // FQCNs to materialize on hit
  *       'array' => [...],                          // schema array form
  *   ], ... ]
+ *
+ * Writes are deferred: `put()` only mutates the in-memory map and marks the
+ * cache dirty; the file is written once on shutdown (or on an explicit
+ * `flush()`). This keeps a full export — which can build hundreds of Data
+ * schemas — to a single disk write instead of one rewrite per class.
+ *
+ * The on-disk payload carries a signature derived from the installed Scramble
+ * version and an internal format version, so the cache self-invalidates when
+ * either changes (no manual `cache:clear` needed after an upgrade).
  */
 class SchemaCache
 {
+    /**
+     * Bump when the cached array shape produced by this package changes.
+     */
+    private const FORMAT_VERSION = 1;
+
     /** @var array<string, array{mtime: int, deps: array<int, string>, array: array<string, mixed>}>|null */
     private ?array $entries = null;
 
-    public function __construct(protected string $path)
-    {
-    }
+    private bool $dirty = false;
+
+    private bool $flushRegistered = false;
+
+    public function __construct(protected string $path) {}
 
     public function path(): string
     {
@@ -43,15 +61,43 @@ class SchemaCache
     {
         $this->load();
         $this->entries[$key] = $entry;
-        $this->persist();
+        $this->dirty = true;
+        $this->registerFlush();
     }
 
     public function clear(): void
     {
         $this->entries = [];
+        $this->dirty = false;
         if (file_exists($this->path)) {
             @unlink($this->path);
         }
+    }
+
+    /**
+     * Write pending changes to disk. Safe to call repeatedly — a no-op unless
+     * something changed since the last write.
+     */
+    public function flush(): void
+    {
+        if (! $this->dirty || $this->entries === null) {
+            return;
+        }
+
+        $this->persist();
+        $this->dirty = false;
+    }
+
+    private function registerFlush(): void
+    {
+        if ($this->flushRegistered) {
+            return;
+        }
+
+        $this->flushRegistered = true;
+        register_shutdown_function(function (): void {
+            $this->flush();
+        });
     }
 
     /**
@@ -66,9 +112,15 @@ class SchemaCache
             return $this->entries = [];
         }
 
-        $loaded = require $this->path;
+        $loaded = @include $this->path;
 
-        return $this->entries = is_array($loaded) ? $loaded : [];
+        if (! is_array($loaded) || ($loaded['__signature'] ?? null) !== $this->signature()) {
+            return $this->entries = [];
+        }
+
+        unset($loaded['__signature']);
+
+        return $this->entries = $loaded;
     }
 
     private function persist(): void
@@ -78,9 +130,25 @@ class SchemaCache
             @mkdir($dir, 0755, true);
         }
 
-        $contents = "<?php\n\nreturn ".var_export($this->entries, true).";\n";
-        $tmp = $this->path.'.tmp';
-        file_put_contents($tmp, $contents);
-        rename($tmp, $this->path);
+        $payload = $this->entries ?? [];
+        $payload['__signature'] = $this->signature();
+
+        $contents = "<?php\n\nreturn ".var_export($payload, true).";\n";
+        $tmp = $this->path.'.'.getmypid().'.tmp';
+
+        if (@file_put_contents($tmp, $contents) === false) {
+            return;
+        }
+
+        @rename($tmp, $this->path);
+    }
+
+    private function signature(): string
+    {
+        $scrambleVersion = class_exists(InstalledVersions::class)
+            ? (InstalledVersions::getVersion('dedoc/scramble') ?? 'unknown')
+            : 'unknown';
+
+        return self::FORMAT_VERSION.'|'.$scrambleVersion;
     }
 }

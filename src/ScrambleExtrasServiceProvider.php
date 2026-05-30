@@ -13,7 +13,8 @@ use PawelJadanowski\ScrambleExtras\Console\Commands\ClearSchemaCacheCommand;
  *    extension list, so they participate in the same pipeline as user-defined
  *    extensions registered via config/scramble.php.
  *  - Prepends a Spatie Data parameter extractor so request bodies typed with
- *    Data subclasses produce $ref'd component schemas.
+ *    Data subclasses produce inlined input schemas (kept separate from the
+ *    reusable output components to stay faithful to input-only rules).
  *  - Binds the SchemaCache singleton (file-backed, per-class mtime
  *    invalidation) and registers the cache:clear artisan command.
  */
@@ -21,15 +22,23 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(SchemaCache::class, function () {
+        $this->mergeConfigFrom(__DIR__.'/../config/scramble-extras.php', 'scramble-extras');
+
+        $this->app->singleton(SchemaCache::class, function ($app) {
+            $configured = $app['config']->get('scramble-extras.cache.path');
+
             return new SchemaCache(
-                storage_path('framework/cache/scramble-extras/schemas.php'),
+                $configured ?: storage_path('framework/cache/scramble-extras/schemas.php'),
             );
         });
     }
 
     public function boot(): void
     {
+        $this->publishes([
+            __DIR__.'/../config/scramble-extras.php' => $this->app->configPath('scramble-extras.php'),
+        ], 'scramble-extras-config');
+
         $extensions = [
             LaravelDataTypeToSchemaExtension::class,
             PaginatedDataCollectionTypeToSchemaExtension::class,
