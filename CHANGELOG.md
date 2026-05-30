@@ -7,11 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- Test suite runs on PHPUnit 12 and uses `#[Test]` attributes instead of the
-  `test` method-name prefix.
-- Added a CI status badge to the README.
-
 ## [0.2.0] - 2026-05-30
 
 ### Added
@@ -20,7 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full test suite: unit tests for the attribute → OpenAPI applier, query-builder
   AST extraction, schema cache, support types, and return-type inference, plus an
   end-to-end Scramble generation test booted with `orchestra/testbench`.
-- GitHub Actions CI matrix across PHP 8.2 / 8.3 / 8.4 and lowest/stable dependencies.
+- GitHub Actions CI matrix across PHP 8.2 / 8.3 / 8.4 and lowest/stable dependencies,
+  plus a CI status badge in the README.
+
+### Changed
+- Test suite uses `#[Test]` attributes instead of the `test` method-name prefix.
+  Dev tooling allows `phpunit/phpunit ^11.5 || ^12.0`: PHP 8.3+ runs on PHPUnit 12,
+  while PHP 8.2 (still a supported runtime) runs on PHPUnit 11, which is the last
+  line that supports PHP 8.2.
 
 ### Changed
 - **Request bodies are now inlined** instead of `$ref`-ing a shared component.
