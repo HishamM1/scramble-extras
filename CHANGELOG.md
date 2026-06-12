@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-12
+
+### Changed
+- **Require `dedoc/scramble ^0.13`** (previously `^0.12.20`). The full test
+  suite (60 tests) passes unchanged against Scramble 0.13.27, so no extension
+  code needed to change. The 0.12 line is dropped to avoid maintaining
+  compatibility shims across two diverging internal-API versions; projects
+  still on Scramble 0.12 should stay on scramble-extras 0.2.x.
+
 ## [0.2.0] - 2026-05-30
 
 ### Added
@@ -50,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validation attributes, paginated/cursor/plain Data collections, Spatie Laravel
   Query Builder parameter extraction, and a persistent schema cache.
 
-[Unreleased]: https://github.com/pjadanowski/scramble-extras/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/pjadanowski/scramble-extras/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/pjadanowski/scramble-extras/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pjadanowski/scramble-extras/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/pjadanowski/scramble-extras/releases/tag/v0.1.0
