@@ -11,6 +11,8 @@ A free, open Laravel package that adds full **Spatie ecosystem** support to [ded
 - **`PaginatedDataCollection<T>`, `CursorPaginatedDataCollection<T>`, `DataCollection<T>`** — proper response envelopes (Laravel paginator format / cursor format / plain array).
 - **Spatie Laravel Query Builder** — `allowedFilters` / `allowedSorts` / `allowedIncludes` / `allowedFields` / `defaultSort` / `jsonPaginate()` parsed via AST. `AllowedFilter::exact($column)` on an enum-cast Eloquent column emits `enum: [...]` automatically.
 - **Persistent schema cache** — file-based, mtime-invalidated. `php artisan scramble-extras:cache:clear` to wipe.
+- **422 for `Data`-typed actions** — a controller action type-hinted with a `Data` class is validated the same way a `FormRequest` would be, so it now documents a `422` response the same way core Scramble already does for `FormRequest`.
+- **`PATCH` documented alongside `PUT`** — Scramble's default route-methods resolver only documents the first HTTP method a route responds to, so `Route::apiResource()`'s update action (registered for both `PUT` and `PATCH`) only ever got a `put` operation. Opt out with `SCRAMBLE_EXTRAS_EXPAND_ROUTE_METHODS=false`. Requires a `dedoc/scramble` version with `GeneratorConfig::resolveOperationMethodsUsing()` (added after this package's 0.13.0 floor); on older installs this feature is a no-op rather than an error.
 
 ## Requirements
 

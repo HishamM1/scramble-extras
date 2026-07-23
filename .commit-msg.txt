@@ -1,0 +1,30 @@
+Fix CI failures on prefer-lowest: version-gate resolveOperationMethodsUsing(), make the example/examples test version-tolerant
+
+CI's prefer-lowest matrix job resolves dedoc/scramble down to 0.13.0 (the
+floor this package's composer.json declares), which surfaced two real
+version-compatibility bugs the prefer-stable-only testing in the previous
+commit didn't catch:
+
+1. GeneratorConfig::resolveOperationMethodsUsing() - which the PATCH-alongside-
+   PUT fix depends on - doesn't exist at 0.13.0 at all: that version is still
+   on the older, non-extensible routeToOperation() (singular) code path with
+   $route->methods()[0] hardcoded inline, no resolver hook of any kind. Calling
+   the method unconditionally threw at service-provider boot time, failing
+   every feature test. Guarded with method_exists() so older installs simply
+   don't get the PATCH expansion instead of crashing; documented the
+   requirement in RouteMethodsResolver's docblock and the README. The
+   regression test for this now skips itself (with an explanation) when the
+   method isn't available, rather than asserting behavior the installed
+   Scramble version cannot produce.
+
+2. Type::example()'s deprecation and folding into the plural `examples` list
+   turns out to be more recent than 0.13.0 too: at the floor version,
+   toArray() still emits the old scalar `example` key exactly like the
+   original (pre-this-package's-fix) test expected. The previous fix to this
+   test assumed the new shape unconditionally. Made the assertion tolerant of
+   either shape, matching the same defensive pattern already used by
+   status_enum_property_emits_enum_values() in the same file.
+
+Verified locally against both ends of the matrix: `composer update
+--prefer-lowest` (dedoc/scramble 0.13.0) and `--prefer-stable` (0.13.35) each
+give a clean run (63 pass + 1 intentional skip, and 64 pass, respectively).

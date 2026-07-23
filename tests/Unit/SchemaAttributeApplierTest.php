@@ -244,9 +244,18 @@ class SchemaAttributeApplierTest extends TestCase
 
         (new SchemaAttributeApplier)->applyExamplesFromPhpDoc($reflection, $type);
 
-        // Type::example() is deprecated as of dedoc/scramble 0.13: toArray()
-        // now folds a single example into the plural `examples` list instead
-        // of exposing a scalar `example` key.
-        $this->assertSame(['Ada Lovelace'], $type->toArray()['examples'] ?? null);
+        // Type::example() is a scalar `example` key on dedoc/scramble 0.13.0
+        // (this package's floor version), but got deprecated somewhere before
+        // 0.13.35 (latest at time of writing): toArray() now folds it into the
+        // plural `examples` list instead. ^0.13.0 spans both shapes - this
+        // package's own CI matrix runs prefer-lowest against 0.13.0 alongside
+        // prefer-stable against latest, so the test has to tolerate either.
+        $array = $type->toArray();
+
+        if (isset($array['examples'])) {
+            $this->assertSame(['Ada Lovelace'], $array['examples']);
+        } else {
+            $this->assertSame('Ada Lovelace', $array['example'] ?? null);
+        }
     }
 }

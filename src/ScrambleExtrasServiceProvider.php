@@ -67,7 +67,15 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
             $transformers->prepend(LaravelDataValidationExceptionExtension::class);
         });
 
-        if ($this->app['config']->get('scramble-extras.expand_route_methods', true)) {
+        // resolveOperationMethodsUsing() doesn't exist before dedoc/scramble
+        // ~0.13.2x (it's still on the single-operation-per-route Generator on
+        // this package's ^0.13.0 floor, with no configurable resolver at all -
+        // see RouteMethodsResolver's docblock). Guard it so older installs
+        // degrade gracefully instead of a hard boot-time error.
+        if (
+            $this->app['config']->get('scramble-extras.expand_route_methods', true)
+            && method_exists(Scramble::configure(), 'resolveOperationMethodsUsing')
+        ) {
             Scramble::configure()->resolveOperationMethodsUsing(RouteMethodsResolver::resolve(...));
         }
 

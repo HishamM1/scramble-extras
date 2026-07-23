@@ -230,6 +230,10 @@ class SchemaGenerationTest extends TestCase
     #[Test]
     public function put_and_patch_are_both_documented_as_separate_operations(): void
     {
+        if (! method_exists(\Dedoc\Scramble\Scramble::configure(), 'resolveOperationMethodsUsing')) {
+            $this->markTestSkipped('resolveOperationMethodsUsing() was added later than this package\'s dedoc/scramble floor (^0.13.0); RouteMethodsResolver is a no-op on older installs.');
+        }
+
         $openApi = $this->generate();
 
         $operations = $openApi['paths']['/users/{id}'] ?? [];
