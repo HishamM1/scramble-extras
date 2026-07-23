@@ -17,6 +17,8 @@ class SchemaGenerationTest extends TestCase
         $router->post('api/users', [UserController::class, 'store']);
         $router->get('api/users', [UserController::class, 'index']);
         $router->get('api/users/search', [UserController::class, 'search']);
+        $router->get('api/users-generic-docblock', [UserController::class, 'indexWithGenericDocblock']);
+        $router->get('api/users-generic-docblock-plain', [UserController::class, 'listWithGenericDocblock']);
     }
 
     /**
@@ -114,6 +116,69 @@ class SchemaGenerationTest extends TestCase
         $this->assertArrayHasKey('data', $properties);
         $this->assertArrayHasKey('meta', $properties);
         $this->assertArrayHasKey('links', $properties);
+        $this->assertItemsResolveToUserData($properties['data']['items'] ?? null, $openApi);
+    }
+
+    /**
+     * Regression test: a controller action can declare a spec-correct,
+     * two-argument generic docblock — `PaginatedDataCollection<int, UserData>`,
+     * matching spatie/laravel-data's own `<TKey of array-key, TValue>`
+     * template declaration — instead of relying on flow inference from the
+     * method body. The item type must still be read from the *value* template
+     * parameter (index 1), not always index 0 (which would be `int`, the key
+     * type, and silently degrade the item schema to an empty object).
+     */
+    #[Test]
+    public function paginated_collection_with_explicit_two_argument_generic_docblock(): void
+    {
+        $openApi = $this->generate();
+
+        $response = $openApi['paths']['/users-generic-docblock']['get']['responses'][200] ?? null;
+        $this->assertNotNull($response);
+
+        $schema = $response['content']['application/json']['schema'] ?? [];
+        $properties = $schema['properties'] ?? [];
+
+        $this->assertArrayHasKey('data', $properties);
+        $this->assertItemsResolveToUserData($properties['data']['items'] ?? null, $openApi);
+    }
+
+    /**
+     * Same regression coverage as above, for the plain (non-paginated)
+     * DataCollection wrapper.
+     */
+    #[Test]
+    public function plain_collection_with_explicit_two_argument_generic_docblock(): void
+    {
+        $openApi = $this->generate();
+
+        $response = $openApi['paths']['/users-generic-docblock-plain']['get']['responses'][200] ?? null;
+        $this->assertNotNull($response);
+
+        $schema = $response['content']['application/json']['schema'] ?? [];
+
+        $this->assertSame('array', $schema['type'] ?? null);
+        $this->assertItemsResolveToUserData($schema['items'] ?? null, $openApi);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $items
+     * @param  array<string, mixed>  $openApi
+     */
+    private function assertItemsResolveToUserData(?array $items, array $openApi): void
+    {
+        $this->assertNotNull($items, 'Item schema is missing entirely.');
+
+        if (isset($items['$ref'])) {
+            $this->assertSame('#/components/schemas/UserData', $items['$ref']);
+
+            return;
+        }
+
+        // Inlined item schema: must have UserData's real properties, not have
+        // silently degraded to an empty `{type: object}` placeholder.
+        $this->assertArrayHasKey('id', $items['properties'] ?? []);
+        $this->assertArrayHasKey('email', $items['properties'] ?? []);
     }
 
     #[Test]

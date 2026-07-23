@@ -54,13 +54,25 @@ class CursorPaginatedDataCollectionTypeToSchemaExtension extends TypeToSchemaExt
             ->setContent('application/json', Schema::fromType($this->toSchema($type)));
     }
 
+    /**
+     * The item type is always the last template parameter: spatie/laravel-data
+     * declares this collection as `<TKey of array-key, TValue>` (matching
+     * Illuminate\Support\Collection), so a spec-correct two-argument generic
+     * like `CursorPaginatedDataCollection<int, ProductData>` carries the Data
+     * class at index 1, not 0. Flow-inferred generics (no docblock, resolved
+     * from a `Data::collect()` call) only ever carry the single value type, at
+     * index 0 — which is also "last" — so this covers both shapes.
+     */
     protected function getItemClass(Type $type): ?string
     {
-        if ($type instanceof Generic && isset($type->templateTypes[0])) {
-            $inner = $type->templateTypes[0];
-            if ($inner instanceof ScrambleObjectType && class_exists($inner->name)) {
-                return $inner->name;
-            }
+        if (! $type instanceof Generic || $type->templateTypes === []) {
+            return null;
+        }
+
+        $inner = end($type->templateTypes);
+
+        if ($inner instanceof ScrambleObjectType && class_exists($inner->name)) {
+            return $inner->name;
         }
 
         return null;
