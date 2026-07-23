@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-23
+
+### Added
+- **422 for `Data`-typed actions.** A controller action type-hinted with a
+  `Data` class is resolved and validated by Laravel exactly like a
+  `FormRequest` would be, but core Scramble only checked for `FormRequest`
+  when deciding whether to document a `422` response. Mirrors core's own
+  `ErrorResponsesExtension` handling.
+- **`PATCH` documented alongside `PUT`.** Scramble's default route-methods
+  resolver only documents the first HTTP method a route responds to, so
+  `Route::apiResource()`'s update action (registered for both `PUT` and
+  `PATCH` on one Route) only ever produced a `put` operation. Opt out with
+  `SCRAMBLE_EXTRAS_EXPAND_ROUTE_METHODS=false` /
+  `scramble-extras.expand_route_methods`. Requires a `dedoc/scramble` version
+  with `GeneratorConfig::resolveOperationMethodsUsing()` (added after this
+  package's 0.13.0 floor); on older installs this feature is a no-op rather
+  than an error.
+
+### Fixed
+- **`PaginatedDataCollection`/`CursorPaginatedDataCollection`/`DataCollection`
+  response envelopes were empty when the item type came from a spec-correct,
+  two-argument generic docblock** (`PaginatedDataCollection<int, ProductData>`,
+  matching spatie/laravel-data's own `<TKey of array-key, TValue>` template
+  declaration, mirroring `Illuminate\Support\Collection`). The three
+  `*TypeToSchemaExtension` classes always read the item type off
+  `templateTypes[0]`, which only holds it in the single-template shape
+  Scramble's flow inference produces from a bare `Data::collect()` call with
+  no docblock; `TValue` is the *last* template parameter, not the first.
+- Stale test assertion against a `dedoc/scramble` `Type::toArray()` shape
+  that changed between patch releases within this package's `^0.13.0` range
+  (scalar `example` key on 0.13.0, folded into the plural `examples` list on
+  later 0.13.x) — the underlying `SchemaAttributeApplier` behavior was never
+  wrong, only the test's expectation of a fixed output shape.
+
 ## [0.3.0] - 2026-06-12
 
 ### Changed
