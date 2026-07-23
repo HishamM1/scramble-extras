@@ -27,4 +27,27 @@ return [
 
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Expand PUT|PATCH routes into separate operations
+    |--------------------------------------------------------------------------
+    |
+    | Scramble core only ever documents the FIRST HTTP method a route responds
+    | to. Route::apiResource()'s update action registers both PUT and PATCH on
+    | a single Route, so PATCH silently never gets documented. When enabled,
+    | every method the route actually responds to (except HEAD/OPTIONS) gets
+    | its own operation.
+    |
+    | This isn't Spatie-specific - it fixes documentation for both Data-typed
+    | and Resource-typed actions alike. Disable it if your app already
+    | registers its own Scramble::configure()->resolveOperationMethodsUsing()
+    | and you don't want this package to take precedence (whichever call runs
+    | last wins; your own AppServiceProvider boots after package providers, so
+    | it already wins by default - this toggle is only for the rare case where
+    | you'd rather this package not touch it at all).
+    |
+    */
+
+    'expand_route_methods' => env('SCRAMBLE_EXTRAS_EXPAND_ROUTE_METHODS', true),
+
 ];

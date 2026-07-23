@@ -2,6 +2,7 @@
 
 namespace PawelJadanowski\ScrambleExtras;
 
+use Dedoc\Scramble\Configuration\OperationTransformers;
 use Dedoc\Scramble\Configuration\ParametersExtractors;
 use Dedoc\Scramble\Scramble;
 use Illuminate\Support\ServiceProvider;
@@ -15,6 +16,9 @@ use PawelJadanowski\ScrambleExtras\Console\Commands\ClearSchemaCacheCommand;
  *  - Prepends a Spatie Data parameter extractor so request bodies typed with
  *    Data subclasses produce inlined input schemas (kept separate from the
  *    reusable output components to stay faithful to input-only rules).
+ *  - Prepends the 422-for-Data-DTO and route-methods-expansion fixes directly
+ *    onto Scramble's OperationTransformers pipeline (registerExtensions()
+ *    would land them too late - see LaravelDataValidationExceptionExtension).
  *  - Binds the SchemaCache singleton (file-backed, per-class mtime
  *    invalidation) and registers the cache:clear artisan command.
  */
@@ -58,6 +62,14 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
         Scramble::configure()->withParametersExtractors(function (ParametersExtractors $extractors) {
             $extractors->prepend(LaravelDataParametersExtractor::class);
         });
+
+        Scramble::configure()->withOperationTransformers(function (OperationTransformers $transformers) {
+            $transformers->prepend(LaravelDataValidationExceptionExtension::class);
+        });
+
+        if ($this->app['config']->get('scramble-extras.expand_route_methods', true)) {
+            Scramble::configure()->resolveOperationMethodsUsing(RouteMethodsResolver::resolve(...));
+        }
 
         if ($this->app->runningInConsole()) {
             $this->commands([

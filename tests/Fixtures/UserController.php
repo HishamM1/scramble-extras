@@ -19,6 +19,16 @@ class UserController
         return $data;
     }
 
+    /**
+     * Registered against both PUT and PATCH on the same route (mimicking
+     * Route::apiResource()'s update action), for the route-methods-expansion
+     * regression test.
+     */
+    public function update(int $id, UserData $data): UserData
+    {
+        return $data;
+    }
+
     public function index()
     {
         return UserData::collect([], PaginatedDataCollection::class);

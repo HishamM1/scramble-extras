@@ -19,6 +19,7 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/users/search', [UserController::class, 'search']);
         $router->get('api/users-generic-docblock', [UserController::class, 'indexWithGenericDocblock']);
         $router->get('api/users-generic-docblock-plain', [UserController::class, 'listWithGenericDocblock']);
+        $router->match(['put', 'patch'], 'api/users/{id}', [UserController::class, 'update']);
     }
 
     /**
@@ -217,5 +218,39 @@ class SchemaGenerationTest extends TestCase
             ['active', 'inactive', 'pending'],
             $statusParam['schema']['enum'] ?? null,
         );
+    }
+
+    /**
+     * Regression test: Scramble core's default operation-methods resolver
+     * only documents the first HTTP method a route responds to. A route
+     * registered for both PUT and PATCH (exactly what Route::apiResource()
+     * does for its update action) must produce two separate operations, not
+     * just `put`.
+     */
+    #[Test]
+    public function put_and_patch_are_both_documented_as_separate_operations(): void
+    {
+        $openApi = $this->generate();
+
+        $operations = $openApi['paths']['/users/{id}'] ?? [];
+
+        $this->assertArrayHasKey('put', $operations, 'PUT operation is missing.');
+        $this->assertArrayHasKey('patch', $operations, 'PATCH operation is missing - the route-methods resolver is only documenting the first method again.');
+    }
+
+    /**
+     * Regression test: a controller action typed with a spatie/laravel-data
+     * Data class is resolved and validated by Laravel exactly like a
+     * FormRequest would be (throwing ValidationException on failure), but
+     * Scramble core only checks for FormRequest when deciding whether to
+     * document a 422 response.
+     */
+    #[Test]
+    public function data_typed_action_documents_a_422_validation_response(): void
+    {
+        $openApi = $this->generate();
+
+        $this->assertArrayHasKey('422', $openApi['paths']['/users']['post']['responses'] ?? []);
+        $this->assertArrayHasKey('422', $openApi['paths']['/users/{id}']['put']['responses'] ?? []);
     }
 }
