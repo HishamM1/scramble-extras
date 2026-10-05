@@ -26,6 +26,11 @@ class UserController
      * Route::apiResource()'s update action), for the route-methods-expansion
      * regression test.
      */
+    public function filtered(RuledData $data): UserData
+    {
+        return UserData::from(['id' => 1]);
+    }
+
     public function ruled(RuledData $data): RuledData
     {
         return $data;

@@ -16,6 +16,7 @@ class SchemaGenerationTest extends TestCase
     {
         /** @var Router $router */
         $router->post('api/request-action', RequestAction::class);
+        $router->get('api/filtered', [UserController::class, 'filtered']);
         $router->post('api/ruled', [UserController::class, 'ruled']);
         $router->get('api/users/{id}', [UserController::class, 'show']);
         $router->post('api/users', [UserController::class, 'store']);
@@ -121,6 +122,19 @@ class SchemaGenerationTest extends TestCase
         $operation = $this->generate()['paths']['/request-action']['post'];
 
         $this->assertArrayNotHasKey('requestBody', $operation);
+    }
+
+    #[Test]
+    public function data_parameter_on_get_route_becomes_query_parameters(): void
+    {
+        $operation = $this->generate()['paths']['/filtered']['get'];
+
+        $this->assertArrayNotHasKey('requestBody', $operation);
+        $parameters = collect($operation['parameters'])->keyBy('name');
+        $this->assertSame(['query'], $parameters->pluck('in')->unique()->values()->all());
+        $this->assertTrue($parameters['name']['required']);
+        $this->assertSame(2, $parameters['name']['schema']['minLength']);
+        $this->assertFalse($parameters['contact']['required'] ?? false);
     }
 
     private function resolveRef(array $schema): array
