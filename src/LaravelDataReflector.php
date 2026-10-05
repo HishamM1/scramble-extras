@@ -195,7 +195,13 @@ class LaravelDataReflector
         $names = [];
 
         foreach ($this->openApiTransformer->context->references->schemas->items as $fqcn => $references) {
-            $names[$references[0]->shortName ?: $references[0]->fullName] = $fqcn;
+            $name = $references[0]->shortName ?: $references[0]->fullName;
+
+            if (isset($names[$name]) && str_contains($names[$name], '\\') && ! str_contains($fqcn, '\\')) {
+                continue;
+            }
+
+            $names[$name] = $fqcn;
         }
 
         return $names;
