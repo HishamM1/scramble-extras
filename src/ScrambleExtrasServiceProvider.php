@@ -5,6 +5,7 @@ namespace PawelJadanowski\ScrambleExtras;
 use Dedoc\Scramble\Configuration\OperationTransformers;
 use Dedoc\Scramble\Configuration\ParametersExtractors;
 use Dedoc\Scramble\Scramble;
+use Dedoc\Scramble\Support\OperationExtensions\ParameterExtractor\FormRequestParametersExtractor;
 use Illuminate\Support\ServiceProvider;
 use PawelJadanowski\ScrambleExtras\Console\Commands\ClearSchemaCacheCommand;
 
@@ -64,6 +65,10 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
             Scramble::configure()->withOperationTransformers(function (OperationTransformers $transformers) {
                 $transformers->append(QueryBuilderOperationExtension::class);
             });
+        }
+
+        if (class_exists(\Lorisleiva\Actions\ActionRequest::class)) {
+            FormRequestParametersExtractor::ignoreInstanceOf(\Lorisleiva\Actions\ActionRequest::class);
         }
 
         Scramble::configure()->withParametersExtractors(function (ParametersExtractors $extractors) {

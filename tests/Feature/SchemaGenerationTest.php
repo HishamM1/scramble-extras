@@ -4,6 +4,7 @@ namespace PawelJadanowski\ScrambleExtras\Tests\Feature;
 
 use Dedoc\Scramble\Generator;
 use Illuminate\Routing\Router;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RequestAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UpdateUserAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UserController;
 use PHPUnit\Framework\Attributes\Test;
@@ -14,6 +15,7 @@ class SchemaGenerationTest extends TestCase
     protected function defineRoutes($router): void
     {
         /** @var Router $router */
+        $router->post('api/request-action', RequestAction::class);
         $router->post('api/ruled', [UserController::class, 'ruled']);
         $router->get('api/users/{id}', [UserController::class, 'show']);
         $router->post('api/users', [UserController::class, 'store']);
@@ -111,6 +113,14 @@ class SchemaGenerationTest extends TestCase
         foreach (['name', 'age', 'kind', 'status', 'family'] as $field) {
             $this->assertContains($field, $schema['required']);
         }
+    }
+
+    #[Test]
+    public function action_request_parameter_produces_no_body(): void
+    {
+        $operation = $this->generate()['paths']['/request-action']['post'];
+
+        $this->assertArrayNotHasKey('requestBody', $operation);
     }
 
     private function resolveRef(array $schema): array
