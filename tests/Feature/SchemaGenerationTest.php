@@ -4,7 +4,9 @@ namespace PawelJadanowski\ScrambleExtras\Tests\Feature;
 
 use Dedoc\Scramble\Generator;
 use Illuminate\Routing\Router;
+use PawelJadanowski\ScrambleExtras\SchemaCache;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\ExcludedAction;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\FilterArrayAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\OtherApiAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RequestAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RulesAction;
@@ -24,6 +26,16 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/rules-action', RulesAction::class);
         $router->post('api/rules-action', RulesAction::class);
         $router->post('api/upload', [UserController::class, 'upload']);
+        $router->post('api/empty-in', [UserController::class, 'emptyIn']);
+        $router->post('api/context-rules', [UserController::class, 'contextRules']);
+        $router->post('api/file-rules', [UserController::class, 'fileRules']);
+        $router->post('api/attribute-files', [UserController::class, 'attributeFiles']);
+        $router->post('api/multipart-lines', [UserController::class, 'multipartLines']);
+        $router->get('api/mixed-payload', [UserController::class, 'mixedPayload']);
+        $router->post('api/nested-json', [UserController::class, 'nestedJson']);
+        $router->post('api/map-rules', [UserController::class, 'mapRules']);
+        $router->get('api/filter-array', FilterArrayAction::class);
+        $router->get('api/json-paginated', [UserController::class, 'jsonPaginated']);
         $router->get('api/sorted', [UserController::class, 'sorted']);
         $router->get('api/filtered', [UserController::class, 'filtered']);
         $router->post('api/ruled', [UserController::class, 'ruled']);
@@ -205,9 +217,9 @@ class SchemaGenerationTest extends TestCase
         $this->assertSame('binary', $properties['proof']['format']);
         $this->assertEqualsCanonicalizing(['string', 'null'], (array) $properties['receipt']['type']);
         $this->assertSame('binary', $properties['receipt']['format']);
-        $this->assertSame('array', $properties['attachments']['type']);
-        $this->assertSame('string', $properties['attachments']['items']['type']);
-        $this->assertSame('binary', $properties['attachments']['items']['format']);
+        $this->assertSame('array', $properties['attachments[]']['type']);
+        $this->assertSame('string', $properties['attachments[]']['items']['type']);
+        $this->assertSame('binary', $properties['attachments[]']['items']['format']);
     }
 
     #[Test]
@@ -219,8 +231,8 @@ class SchemaGenerationTest extends TestCase
         $this->assertArrayNotHasKey('maxLength', $properties['proof']);
         $this->assertArrayNotHasKey('minLength', $properties['proof']);
         $this->assertSame('Minimum file size: 5 kilobytes. Maximum file size: 10240 kilobytes.', $properties['proof']['description']);
-        $this->assertArrayNotHasKey('maxLength', $properties['attachments']['items']);
-        $this->assertSame('Maximum file size: 2048 kilobytes.', $properties['attachments']['items']['description']);
+        $this->assertArrayNotHasKey('maxLength', $properties['attachments[]']['items']);
+        $this->assertSame('Maximum file size: 2048 kilobytes.', $properties['attachments[]']['items']['description']);
     }
 
     #[Test]
@@ -250,6 +262,187 @@ class SchemaGenerationTest extends TestCase
         $this->assertTrue($parameters['name']['required']);
         $this->assertSame(2, $parameters['name']['schema']['minLength']);
         $this->assertFalse($parameters['contact']['required'] ?? false);
+    }
+
+    #[Test]
+    public function in_rule_with_only_empty_values_does_not_emit_an_enum(): void
+    {
+        $content = $this->generate()['paths']['/empty-in']['post']['requestBody']['content']['application/json']['schema'];
+        $properties = $this->resolveRef($content)['properties'];
+
+        $this->assertArrayNotHasKey('enum', $properties['tenant']);
+        $this->assertSame(['a', 'b'], $properties['kind']['enum']);
+    }
+
+    #[Test]
+    public function empty_in_rule_keeps_an_earlier_enum_and_mixed_lists_drop_empty_values(): void
+    {
+        $content = $this->generate()['paths']['/empty-in']['post']['requestBody']['content']['application/json']['schema'];
+        $properties = $this->resolveRef($content)['properties'];
+
+        $this->assertSame(['active', 'inactive', 'pending'], $properties['status']['enum'] ?? null);
+        $this->assertSame(['a'], $properties['mixed']['enum']);
+    }
+
+    #[Test]
+    public function rules_taking_a_validation_context_are_applied(): void
+    {
+        $content = $this->generate()['paths']['/context-rules']['post']['requestBody']['content']['application/json']['schema'];
+
+        $this->assertSame(300, $this->resolveRef($content)['properties']['body']['maxLength']);
+    }
+
+    #[Test]
+    public function file_rules_on_nested_and_wildcard_keys_become_binary_strings_in_a_multipart_body(): void
+    {
+        $content = $this->generate()['paths']['/file-rules']['post']['requestBody']['content'];
+
+        $this->assertSame(['multipart/form-data'], array_keys($content));
+        $properties = $this->resolveRef($content['multipart/form-data']['schema'])['properties'];
+
+        $this->assertArrayNotHasKey('branding', $properties);
+        $this->assertSame(['string', 'null'], (array) $properties['branding[primary_color]']['type']);
+
+        $logo = $properties['branding[logo]'];
+        $this->assertSame('binary', $logo['format']);
+        $this->assertSame('application/octet-stream', $logo['contentMediaType']);
+        $this->assertArrayNotHasKey('maxLength', $logo);
+        $this->assertSame('Maximum file size: 10240 kilobytes.', $logo['description']);
+
+        $this->assertSame('Avatar. Maximum file size: 2048 kilobytes.', $properties['avatar']['description']);
+        $this->assertSame('binary', $properties['avatar']['format']);
+
+        $items = $properties['attachments[]']['items'];
+        $this->assertSame('string', $items['type']);
+        $this->assertSame('binary', $items['format']);
+        $this->assertArrayNotHasKey('maxLength', $items);
+    }
+
+    #[Test]
+    public function multipart_media_type_and_flattened_schema_agree_in_every_case(): void
+    {
+        $paths = $this->generate()['paths'];
+
+        foreach (['/upload', '/file-rules', '/attribute-files'] as $path) {
+            $content = $paths[$path]['post']['requestBody']['content'];
+            $this->assertSame(['multipart/form-data'], array_keys($content), $path);
+            $properties = $this->resolveRef($content['multipart/form-data']['schema'])['properties'];
+            $this->assertSame([], array_filter(array_keys($properties), fn ($name) => $name === 'branding'), $path);
+        }
+
+        $properties = $this->resolveRef($paths['/attribute-files']['post']['requestBody']['content']['multipart/form-data']['schema'])['properties'];
+        $this->assertSame('application/octet-stream', $properties['photo']['contentMediaType']);
+        $this->assertSame('application/octet-stream', $properties['document']['contentMediaType']);
+        $this->assertSame('array', $properties['lines']['type']);
+        $this->assertSame('object', $properties['lines']['items']['type']);
+
+        $content = $paths['/nested-json']['post']['requestBody']['content'];
+        $this->assertSame(['application/json'], array_keys($content));
+        $properties = $this->resolveRef($content['application/json']['schema'])['properties'];
+        $this->assertSame('object', $properties['meta']['type']);
+        $this->assertArrayNotHasKey('meta[key]', $properties);
+    }
+
+    #[Test]
+    public function multipart_flattening_skips_arrays_of_objects_and_tracks_required(): void
+    {
+        $content = $this->generate()['paths']['/multipart-lines']['post']['requestBody']['content'];
+        $schema = $this->resolveRef($content['multipart/form-data']['schema']);
+        $properties = $schema['properties'];
+
+        $this->assertArrayHasKey('lines', $properties);
+        $this->assertArrayNotHasKey('lines[]', $properties);
+        $this->assertArrayHasKey('files[]', $properties);
+        $this->assertArrayHasKey('extras[]', $properties);
+        $this->assertArrayHasKey('tags[]', $properties);
+        $this->assertEqualsCanonicalizing(['proof', 'files[]', 'lines'], $schema['required']);
+    }
+
+    #[Test]
+    public function mixed_properties_serialize_as_empty_schema_on_a_warm_cache(): void
+    {
+        config()->set('scramble-extras.cache.path', sys_get_temp_dir().'/scramble-extras-mixed-'.uniqid().'.php');
+        config()->set('scramble-extras.cache.enabled', true);
+        app()->forgetInstance(SchemaCache::class);
+
+        $cold = $this->generate()['components']['schemas']['MixedPayloadData'];
+        app(SchemaCache::class)->flush();
+        app()->forgetInstance(SchemaCache::class);
+        $warm = $this->generate()['components']['schemas']['MixedPayloadData'];
+
+        $this->assertEquals($cold, $warm);
+        $this->assertEquals((object) [], $warm['properties']['payload']);
+        $this->assertEquals((object) [], $warm['properties']['items']['items']);
+    }
+
+    #[Test]
+    public function wildcard_rules_refine_keyed_maps_instead_of_replacing_them_with_lists(): void
+    {
+        $content = $this->generate()['paths']['/map-rules']['post']['requestBody']['content']['application/json']['schema'];
+        $properties = $this->resolveRef($content)['properties'];
+
+        $mapping = $properties['mapping'];
+        $this->assertNotSame('array', $mapping['type']);
+        $this->assertSame(5, $mapping['additionalProperties']['maxLength']);
+
+        $values = $properties['rows']['items']['properties']['values'];
+        $this->assertArrayNotHasKey('items', $values);
+        $this->assertSame(7, $values['additionalProperties']['maxLength']);
+    }
+
+    #[Test]
+    public function paginated_get_operations_gain_a_page_parameter(): void
+    {
+        $paths = $this->generate()['paths'];
+
+        $page = collect($paths['/users']['get']['parameters'])->firstWhere('name', 'page');
+        $this->assertSame('integer', $page['schema']['type']);
+        $this->assertSame(1, $page['schema']['minimum']);
+        $this->assertFalse($page['required'] ?? false);
+
+        $this->assertContains('page', array_column($paths['/user-responses-meta-list']['get']['parameters'], 'name'));
+        $this->assertNotContains('page', array_column($paths['/user-responses-list']['get']['parameters'] ?? [], 'name'));
+        $this->assertNotContains('page', array_column($paths['/user-responses-cursor']['get']['parameters'] ?? [], 'name'));
+
+        $cursor = collect($paths['/user-responses-cursor']['get']['parameters'])->firstWhere('name', 'cursor');
+        $this->assertSame('string', $cursor['schema']['type']);
+    }
+
+    #[Test]
+    public function array_rule_filters_are_not_duplicated_as_single_valued_query_builder_filters(): void
+    {
+        $parameters = collect($this->generate()['paths']['/filter-array']['get']['parameters']);
+
+        $this->assertSame('array', $parameters->firstWhere('name', 'filter[status][]')['schema']['type']);
+        $this->assertNull($parameters->firstWhere('name', 'filter[status]'));
+    }
+
+    #[Test]
+    public function sorts_and_filters_declared_through_variables_are_documented(): void
+    {
+        $parameters = collect($this->generate()['paths']['/filter-array']['get']['parameters']);
+        $description = $parameters->firstWhere('name', 'sort')['description'];
+
+        $this->assertStringContainsString('`balance`', $description);
+        $this->assertStringNotContainsString('`x`', $description);
+        $this->assertNotNull($parameters->firstWhere('name', 'filter[search]'));
+    }
+
+    #[Test]
+    public function boolean_rule_query_parameters_are_typed_boolean(): void
+    {
+        $parameters = collect($this->generate()['paths']['/filter-array']['get']['parameters']);
+
+        $this->assertContains('boolean', (array) $parameters->firstWhere('name', 'filter[active_only]')['schema']['type']);
+    }
+
+    #[Test]
+    public function page_parameter_is_not_added_when_a_bracketed_page_parameter_exists(): void
+    {
+        $names = array_column($this->generate()['paths']['/json-paginated']['get']['parameters'], 'name');
+
+        $this->assertContains('page[number]', $names);
+        $this->assertNotContains('page', $names);
     }
 
     private function resolveRef(array $schema): array

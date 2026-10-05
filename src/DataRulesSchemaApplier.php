@@ -15,9 +15,12 @@ use Dedoc\Scramble\Support\Generator\Types\StringType as OpenApiStringType;
 use Dedoc\Scramble\Support\Generator\Types\Type as OpenApiType;
 use Dedoc\Scramble\Support\Generator\Types\UnknownType as OpenApiUnknownType;
 use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rules\In;
 use ReflectionClass;
 use ReflectionMethod;
+use Spatie\LaravelData\Support\Validation\ValidationContext;
+use Spatie\LaravelData\Support\Validation\ValidationPath;
 use Throwable;
 
 class DataRulesSchemaApplier
@@ -53,12 +56,14 @@ class DataRulesSchemaApplier
 
         $method = new ReflectionMethod($dataClass, 'rules');
 
-        if (! $method->isStatic() || $method->getNumberOfRequiredParameters() > 0) {
+        if (! $method->isStatic()) {
             return [];
         }
 
         try {
-            $rules = $dataClass::rules();
+            $rules = app()->call([$dataClass, 'rules'], [
+                'context' => new ValidationContext([], [], ValidationPath::create()),
+            ]);
         } catch (Throwable $e) {
             if (function_exists('app') && app()->bound('log')) {
                 app('log')->warning('scramble-extras could not evaluate rules()', [
@@ -105,6 +110,7 @@ class DataRulesSchemaApplier
                 'min' => null,
                 'max' => null,
                 'in' => null,
+                'file' => false,
             ],
             'children' => [],
         ];
@@ -117,10 +123,16 @@ class DataRulesSchemaApplier
 
         foreach ($items as $item) {
             if ($item instanceof In) {
+                $previous = $parsed['in'];
                 $rendered = (string) $item;
-                $parsed['in'] = str_starts_with($rendered, 'in:') ? str_getcsv(substr($rendered, 3), ',', '"', '') : null;
+                $parsed['in'] = str_starts_with($rendered, 'in:') ? $this->inValues(substr($rendered, 3)) : null;
+                $parsed['in'] ??= $previous;
             } elseif ($item instanceof Enum) {
                 $parsed['in'] = $this->enumValues($item);
+            } elseif ($item instanceof File) {
+                $parsed['file'] = true;
+                $parsed['min'] = $this->fileSize($item, 'minimumFileSize') ?? $parsed['min'];
+                $parsed['max'] = $this->fileSize($item, 'maximumFileSize') ?? $parsed['max'];
             } elseif (is_string($item)) {
                 $this->applyStringRule($parsed, $item);
             }
@@ -168,9 +180,39 @@ class DataRulesSchemaApplier
                 $parsed['max'] = is_numeric($arguments) ? $arguments + 0 : null;
                 break;
             case 'in':
-                $parsed['in'] = $arguments === null ? null : str_getcsv($arguments, ',', '"', '');
+                $parsed['in'] = ($arguments === null ? null : $this->inValues($arguments)) ?? $parsed['in'];
+                break;
+            case 'file':
+            case 'image':
+            case 'mimes':
+            case 'mimetypes':
+            case 'extensions':
+                $parsed['file'] = true;
                 break;
         }
+    }
+
+    protected function fileSize(File $rule, string $property): int|float|null
+    {
+        $reflection = new ReflectionClass($rule);
+
+        if (! $reflection->hasProperty($property)) {
+            return null;
+        }
+
+        $value = $reflection->getProperty($property)->getValue($rule);
+
+        return is_numeric($value) ? $value + 0 : null;
+    }
+
+    protected function inValues(string $arguments): ?array
+    {
+        $values = array_values(array_filter(
+            str_getcsv($arguments, ',', '"', ''),
+            fn ($value) => $value !== null && $value !== '',
+        ));
+
+        return $values === [] ? null : $values;
     }
 
     protected function enumValues(Enum $rule): ?array
@@ -215,12 +257,18 @@ class DataRulesSchemaApplier
         unset($children['*']);
 
         if ($itemNode !== null) {
-            $array = $type instanceof OpenApiArrayType ? $type : new OpenApiArrayType;
-            $items = $array->items instanceof OpenApiType && ! $array->items instanceof OpenApiUnknownType
-                ? $array->items
-                : new OpenApiUnknownType;
-            $array->setItems($this->refine($items, $itemNode));
-            $type = $array;
+            $map = $this->findMap($type);
+
+            if ($map !== null) {
+                $map->additionalProperties($this->refine($map->additionalProperties, $itemNode));
+            } else {
+                $array = $type instanceof OpenApiArrayType ? $type : new OpenApiArrayType;
+                $items = $array->items instanceof OpenApiType && ! $array->items instanceof OpenApiUnknownType
+                    ? $array->items
+                    : new OpenApiUnknownType;
+                $array->setItems($this->refine($items, $itemNode));
+                $type = $array;
+            }
         }
 
         if ($children !== []) {
@@ -241,6 +289,25 @@ class DataRulesSchemaApplier
         }
 
         return $this->constrain($type, $rules);
+    }
+
+    protected function findMap(OpenApiType $type): ?OpenApiObjectType
+    {
+        if ($type instanceof OpenApiObjectType) {
+            return $type->additionalProperties instanceof OpenApiType ? $type : null;
+        }
+
+        if ($type instanceof AnyOf) {
+            foreach ($type->items as $item) {
+                $map = $this->findMap($item);
+
+                if ($map !== null) {
+                    return $map;
+                }
+            }
+        }
+
+        return null;
     }
 
     protected function coerce(OpenApiType $type, ?string $ruleType): OpenApiType
@@ -265,6 +332,14 @@ class DataRulesSchemaApplier
             return $type;
         }
 
+        if ($rules['file'] && ! ($type instanceof OpenApiStringType && $type->format === 'binary')) {
+            $type = (new OpenApiStringType)
+                ->contentMediaType('application/octet-stream')
+                ->format('binary')
+                ->nullable($type->nullable)
+                ->setDescription($type->description);
+        }
+
         if ($rules['required'] && ! $rules['nullable']) {
             $this->setNullable($type, false);
         } elseif ($rules['nullable']) {
@@ -280,12 +355,13 @@ class DataRulesSchemaApplier
         }
 
         if ($type instanceof OpenApiStringType && ($type->format === 'binary' || $type->contentMediaType === 'application/octet-stream')) {
-            if ($type->description === '') {
-                $sizes = array_filter([
-                    $rules['min'] !== null ? "Minimum file size: {$rules['min']} kilobytes." : null,
-                    $rules['max'] !== null ? "Maximum file size: {$rules['max']} kilobytes." : null,
-                ]);
-                $type->setDescription(implode(' ', $sizes));
+            $sizes = array_filter([
+                $rules['min'] !== null ? "Minimum file size: {$rules['min']} kilobytes." : null,
+                $rules['max'] !== null ? "Maximum file size: {$rules['max']} kilobytes." : null,
+            ]);
+
+            if ($sizes !== []) {
+                $type->setDescription(trim($type->description.' '.implode(' ', $sizes)));
             }
         } elseif ($type instanceof OpenApiStringType || $type instanceof OpenApiNumberType) {
             if ($rules['min'] !== null && $type->min === null) {

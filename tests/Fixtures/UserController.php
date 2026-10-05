@@ -2,6 +2,7 @@
 
 namespace PawelJadanowski\ScrambleExtras\Tests\Fixtures;
 
+use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use PawelJadanowski\ScrambleExtras\PaginatedListResponse;
@@ -31,6 +32,57 @@ class UserController
     public function filtered(RuledData $data): UserData
     {
         return UserData::from(['id' => 1]);
+    }
+
+    #[QueryParameter('age', default: 25)]
+    public function filteredWithDefault(RuledData $data): UserData
+    {
+        return UserData::from(['id' => 1]);
+    }
+
+    public function filteredAgain(RuledData $data): UserData
+    {
+        return UserData::from(['id' => 1]);
+    }
+
+    public function emptyIn(EmptyInData $data): array
+    {
+        return [];
+    }
+
+    public function contextRules(ContextRulesData $data): array
+    {
+        return [];
+    }
+
+    public function fileRules(FileRulesData $data): array
+    {
+        return [];
+    }
+
+    public function attributeFiles(AttributeFilesData $data): array
+    {
+        return [];
+    }
+
+    public function multipartLines(MultipartLinesData $data): array
+    {
+        return [];
+    }
+
+    public function mixedPayload(): MixedPayloadData
+    {
+        return MixedPayloadData::from(['payload' => null, 'items' => [], 'meta' => [], 'name' => '']);
+    }
+
+    public function nestedJson(NestedJsonData $data): array
+    {
+        return [];
+    }
+
+    public function mapRules(MapRulesData $data): array
+    {
+        return [];
     }
 
     public function ruled(RuledData $data): RuledData
@@ -91,6 +143,13 @@ class UserController
             ->jsonPaginate();
 
         return [];
+    }
+
+    public function jsonPaginated(): PaginatedDataCollection
+    {
+        QueryBuilder::for(User::class)->jsonPaginate();
+
+        return UserData::collect([], PaginatedDataCollection::class);
     }
 
     public function sorted(SortedData $data): array

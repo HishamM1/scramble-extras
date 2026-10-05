@@ -138,7 +138,7 @@ class SchemaAttributeApplier
 
             // --- Files ------------------------------------------------------
             $name === V\File::class => $this->applyContentMedia($a, 'application/octet-stream'),
-            $name === V\Image::class => $this->applyContentMedia($a, 'image/*'),
+            $name === V\Image::class => $this->applyContentMedia($a, 'application/octet-stream'),
             $name === V\Mimes::class => $a->addNote('Allowed file extensions: '.implode(', ', Arr::flatten($args))),
             $name === V\MimeTypes::class => $a->addNote('Allowed mime types: '.implode(', ', Arr::flatten($args))),
             $name === V\Dimensions::class => $a->addNote('Image dimension constraints apply.'),

@@ -155,7 +155,7 @@ class SchemaAttributeApplierTest extends TestCase
     {
         $array = $this->analyze('avatar', new StringType)->type->toArray();
 
-        $this->assertSame('image/*', $array['contentMediaType'] ?? null);
+        $this->assertSame('application/octet-stream', $array['contentMediaType'] ?? null);
         $this->assertSame('binary', $array['contentEncoding'] ?? null);
     }
 
