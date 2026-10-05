@@ -392,4 +392,15 @@ class SchemaGenerationTest extends TestCase
         $this->assertStringContainsString('`age`', $sort['description']);
         $this->assertSame('name', $sort['schema']['default'] ?? null);
     }
+
+    #[Test]
+    public function custom_query_filters_do_not_leak_into_other_methods(): void
+    {
+        $paths = $this->generate()['paths'];
+
+        foreach ([$paths['/users']['post'], $paths['/users/{id}']['get']] as $operation) {
+            $names = array_column($operation['parameters'] ?? [], 'name');
+            $this->assertSame([], array_values(array_filter($names, fn ($n) => str_starts_with($n, 'filter[') || $n === 'sort')));
+        }
+    }
 }

@@ -12,13 +12,15 @@ use Dedoc\Scramble\Support\Generator\Types\StringType as OpenApiStringType;
 use Dedoc\Scramble\Support\RouteInfo;
 use Illuminate\Database\Eloquent\Model;
 use PhpParser\Node;
+use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\New_;
+use PhpParser\Node\Expr\StaticCall;
+use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\NodeFinder;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\NodeVisitorAbstract;
 use PhpParser\ParserFactory;
 use Spatie\QueryBuilder\QueryBuilder;
 use ReflectionClass;
@@ -74,7 +76,7 @@ class QueryBuilderOperationExtension extends OperationExtension
         }
 
         $usages = [];
-        foreach ($this->customQueryClasses($file) as $queryClass) {
+        foreach ($this->customQueryClasses($file, $routeInfo->reflectionMethod()->getName()) as $queryClass) {
             $queryFile = (new ReflectionClass($queryClass))->getFileName();
             if (! $queryFile) {
                 continue;
@@ -102,32 +104,42 @@ class QueryBuilderOperationExtension extends OperationExtension
     /**
      * @return array<int, class-string<QueryBuilder>>
      */
-    protected function customQueryClasses(string $file): array
+    protected function customQueryClasses(string $file, string $methodName): array
     {
-        $collector = new class extends NodeVisitorAbstract
-        {
-            /** @var array<string, true> */
-            public array $classes = [];
-
-            public function enterNode(Node $node)
-            {
-                if ($node instanceof New_ && $node->class instanceof Name) {
-                    $name = $node->class->toString();
-                    if (class_exists($name) && is_subclass_of($name, QueryBuilder::class)) {
-                        $this->classes[$name] = true;
-                    }
-                }
-
-                return null;
-            }
-        };
-
         $traverser = new NodeTraverser;
         $traverser->addVisitor(new NameResolver);
-        $traverser->addVisitor($collector);
-        $traverser->traverse($this->parse($file));
+        $nodes = $traverser->traverse($this->parse($file));
 
-        return array_keys($collector->classes);
+        $methods = [];
+        foreach ((new NodeFinder)->findInstanceOf($nodes, ClassMethod::class) as $method) {
+            $methods[$method->name->toString()] ??= $method;
+        }
+
+        $classes = [];
+        $visited = [];
+        $queue = [$methodName];
+
+        while ($queue !== []) {
+            $name = array_shift($queue);
+            if (isset($visited[$name]) || ! isset($methods[$name])) {
+                continue;
+            }
+            $visited[$name] = true;
+
+            foreach ((new NodeFinder)->find($methods[$name]->stmts ?? [], fn (Node $node) => true) as $node) {
+                if ($node instanceof New_ && $node->class instanceof Name) {
+                    $class = $node->class->toString();
+                    if (class_exists($class) && is_subclass_of($class, QueryBuilder::class)) {
+                        $classes[$class] = true;
+                    }
+                } elseif (($node instanceof MethodCall || $node instanceof StaticCall) && $node->name instanceof Identifier) {
+                    $called = $node->name->toString();
+                    $queue[] = $called === 'run' ? 'handle' : $called;
+                }
+            }
+        }
+
+        return array_keys($classes);
     }
 
     /**
