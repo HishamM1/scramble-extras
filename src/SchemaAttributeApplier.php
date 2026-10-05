@@ -13,6 +13,10 @@ use ReflectionAttribute;
 use ReflectionEnum;
 use ReflectionProperty;
 use Spatie\LaravelData\Attributes\Validation as V;
+use Spatie\LaravelData\Attributes\WithCast;
+use Spatie\LaravelData\Attributes\WithTransformer;
+use Spatie\LaravelData\Casts\DateTimeInterfaceCast;
+use Spatie\LaravelData\Transformers\DateTimeInterfaceTransformer;
 
 /**
  * Translates every spatie/laravel-data validation attribute into one of:
@@ -85,6 +89,8 @@ class SchemaAttributeApplier
             $name === V\Timezone::class => $this->setFormat($a, 'timezone'),
             $name === V\Password::class => $this->setFormat($a, 'password'),
             $name === V\DateFormat::class => $this->applyDateFormat($a, $args),
+            $name === WithTransformer::class,
+            $name === WithCast::class => $this->applyDateTimeFormat($a, $args),
 
             // --- Numeric / length bounds -------------------------------------
             $name === V\Min::class => $this->applyMin($a, $args[0] ?? null),
@@ -206,7 +212,22 @@ class SchemaAttributeApplier
     {
         $values = Arr::flatten($args);
         if (count($values) === 1 && is_string($values[0])) {
-            $a->type->format($values[0]);
+            $a->type->format($values[0] === 'Y-m-d' ? 'date' : $values[0]);
+        }
+    }
+
+    protected function applyDateTimeFormat(AttributeAnalysis $a, array $args): void
+    {
+        $class = $args[0] ?? $args['transformerClass'] ?? $args['castClass'] ?? null;
+        $format = $args['format'] ?? $args[1] ?? null;
+
+        if (
+            is_string($class)
+            && (is_a($class, DateTimeInterfaceTransformer::class, true) || is_a($class, DateTimeInterfaceCast::class, true))
+            && $format === 'Y-m-d'
+            && $a->type instanceof OpenApiStringType
+        ) {
+            $a->type->format('date');
         }
     }
 

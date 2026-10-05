@@ -90,6 +90,11 @@ class UserController
         return [];
     }
 
+    public function dates(DatesData $data): DatesData
+    {
+        return $data;
+    }
+
     public function ruled(RuledData $data): RuledData
     {
         return $data;

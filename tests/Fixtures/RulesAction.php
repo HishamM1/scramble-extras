@@ -20,6 +20,7 @@ class RulesAction
         return [
             'amount' => ['required', 'numeric'],
             'note' => ['nullable', 'string'],
+            'day' => ['nullable', 'date_format:Y-m-d'],
             'filter.status' => ['nullable', 'array'],
             'filter.status.*' => ['string', Rule::in(['active', 'archived'])],
         ];

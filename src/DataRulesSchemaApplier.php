@@ -173,6 +173,12 @@ class DataRulesSchemaApplier
                 $parsed['type'] ??= 'string';
                 $parsed['format'] = 'uuid';
                 break;
+            case 'date_format':
+                if ($arguments === 'Y-m-d') {
+                    $parsed['type'] ??= 'string';
+                    $parsed['format'] = 'date';
+                }
+                break;
             case 'min':
                 $parsed['min'] = is_numeric($arguments) ? $arguments + 0 : null;
                 break;
@@ -346,7 +352,7 @@ class DataRulesSchemaApplier
             $this->setNullable($type, true);
         }
 
-        if ($rules['format'] !== null && $type instanceof OpenApiStringType && $type->format === '') {
+        if ($rules['format'] !== null && $type instanceof OpenApiStringType && ($type->format === '' || ($rules['format'] === 'date' && $type->format === 'date-time'))) {
             $type->format($rules['format']);
         }
 

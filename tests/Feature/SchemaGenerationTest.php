@@ -40,6 +40,7 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/sorted', [UserController::class, 'sorted']);
         $router->get('api/filtered', [UserController::class, 'filtered']);
         $router->post('api/ruled', [UserController::class, 'ruled']);
+        $router->post('api/dates', [UserController::class, 'dates']);
         $router->get('api/users/{id}', [UserController::class, 'show']);
         $router->post('api/users', [UserController::class, 'store']);
         $router->get('api/users', [UserController::class, 'index']);
@@ -139,6 +140,42 @@ class SchemaGenerationTest extends TestCase
         foreach (['name', 'age', 'kind', 'status', 'family'] as $field) {
             $this->assertContains($field, $schema['required']);
         }
+    }
+
+    #[Test]
+    public function date_only_validation_rules_and_attributes_become_date_format_in_request_bodies(): void
+    {
+        $schema = $this->generate()['paths']['/dates']['post']['requestBody']['content']['application/json']['schema'];
+        $p = $this->resolveRef($schema)['properties'];
+
+        $this->assertSame('date', $p['attributeDay']['format']);
+        $this->assertSame('date', $p['plainDate']['format']);
+        $this->assertSame('date', $p['ruleDay']['format']);
+        $this->assertSame('date', $p['castDay']['format']);
+    }
+
+    #[Test]
+    public function date_only_transformers_become_date_format_in_output_and_other_dates_stay_date_time(): void
+    {
+        $p = $this->generate()['components']['schemas']['DatesData']['properties'];
+
+        $this->assertSame('date', $p['namedTransformerDay']['format']);
+        $this->assertSame('date', $p['positionalTransformerDay']['format']);
+        $this->assertSame('date', $p['castDay']['format']);
+        $this->assertSame('date-time', $p['moment']['format']);
+        $this->assertSame('date-time', $p['createdAt']['format']);
+    }
+
+    #[Test]
+    public function date_format_rule_on_an_action_becomes_date_format_on_query_and_body(): void
+    {
+        $paths = $this->generate()['paths']['/rules-action'];
+
+        $day = collect($paths['get']['parameters'])->firstWhere('name', 'day');
+        $this->assertSame('date', $day['schema']['format']);
+
+        $body = $this->resolveRef($paths['post']['requestBody']['content']['application/json']['schema']);
+        $this->assertSame('date', $body['properties']['day']['format']);
     }
 
     #[Test]
