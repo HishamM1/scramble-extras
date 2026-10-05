@@ -26,6 +26,11 @@ class UserController
      * Route::apiResource()'s update action), for the route-methods-expansion
      * regression test.
      */
+    public function ruled(RuledData $data): RuledData
+    {
+        return $data;
+    }
+
     public function update(int $id, UserData $data): UserData
     {
         return $data;

@@ -99,6 +99,10 @@ class LaravelDataReflector
 
         $object->setRequired($required);
 
+        if ($input) {
+            (new DataRulesSchemaApplier)->apply($object, $dataClass);
+        }
+
         return $object;
     }
 

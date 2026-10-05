@@ -14,6 +14,7 @@ class SchemaGenerationTest extends TestCase
     protected function defineRoutes($router): void
     {
         /** @var Router $router */
+        $router->post('api/ruled', [UserController::class, 'ruled']);
         $router->get('api/users/{id}', [UserController::class, 'show']);
         $router->post('api/users', [UserController::class, 'store']);
         $router->get('api/users', [UserController::class, 'index']);
@@ -84,6 +85,47 @@ class SchemaGenerationTest extends TestCase
 
         $this->assertSame('array', $addresses['type']);
         $this->assertArrayHasKey('items', $addresses);
+    }
+
+    #[Test]
+    public function rules_are_mapped_to_request_schema_constraints(): void
+    {
+        $schema = $this->generate()['paths']['/ruled']['post']['requestBody']['content']['application/json']['schema'];
+        $schema = $this->resolveRef($schema);
+        $p = $schema['properties'];
+
+        $this->assertSame(2, $p['name']['minLength']);
+        $this->assertSame(50, $p['name']['maxLength']);
+        $this->assertSame('email', $p['contact']['format']);
+        $this->assertSame(1, $p['age']['minimum']);
+        $this->assertSame(120, $p['age']['maximum']);
+        $this->assertSame(['a', 'b'], $p['kind']['enum']);
+        $this->assertNotEmpty($p['status']['enum'] ?? $p['status']['anyOf'] ?? []);
+        $this->assertSame(3, $p['tags']['maxItems']);
+        $this->assertSame(10, $p['tags']['items']['maxLength']);
+        $this->assertSame(['phone'], array_values(array_intersect(['phone'], $p['family']['required'])));
+        $this->assertSame('array', $p['family']['properties']['parents']['type']);
+        $this->assertContains('name', $p['family']['properties']['parents']['items']['required']);
+        foreach (['name', 'age', 'kind', 'status', 'family'] as $field) {
+            $this->assertContains($field, $schema['required']);
+        }
+    }
+
+    private function resolveRef(array $schema): array
+    {
+        foreach ($schema['allOf'] ?? [] as $part) {
+            if (isset($part['properties'])) {
+                return $part;
+            }
+        }
+
+        if (isset($schema['$ref'])) {
+            $name = basename($schema['$ref']);
+
+            return $this->generate()['components']['schemas'][$name];
+        }
+
+        return $schema;
     }
 
     #[Test]
