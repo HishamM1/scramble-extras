@@ -28,6 +28,10 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/../config/scramble-extras.php', 'scramble-extras');
 
+        if (interface_exists(\Dedoc\Scramble\Contracts\RouteProvider::class)) {
+            $this->app->extend(\Dedoc\Scramble\Contracts\RouteProvider::class, fn ($provider) => new LaravelActionsRouteProvider($provider));
+        }
+
         $this->app->singleton(SchemaCache::class, function ($app) {
             $configured = $app['config']->get('scramble-extras.cache.path');
 

@@ -4,6 +4,7 @@ namespace PawelJadanowski\ScrambleExtras\Tests\Feature;
 
 use Dedoc\Scramble\Generator;
 use Illuminate\Routing\Router;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UpdateUserAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UserController;
 use PHPUnit\Framework\Attributes\Test;
 use PawelJadanowski\ScrambleExtras\Tests\TestCase;
@@ -20,6 +21,7 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/users-generic-docblock', [UserController::class, 'indexWithGenericDocblock']);
         $router->get('api/users-generic-docblock-plain', [UserController::class, 'listWithGenericDocblock']);
         $router->match(['put', 'patch'], 'api/users/{id}', [UserController::class, 'update']);
+        $router->put('api/actions/{id}', UpdateUserAction::class)->name('api.actions.update');
         $router->get('api/user-responses/{user}', [UserController::class, 'showResponse']);
         $router->post('api/user-responses', [UserController::class, 'created']);
         $router->get('api/user-responses-paged', [UserController::class, 'pagedResponse']);
@@ -297,5 +299,19 @@ class SchemaGenerationTest extends TestCase
         $schema = $openApi['paths']['/user-responses-list']['get']['responses'][200]['content']['application/json']['schema'] ?? [];
 
         $this->assertItemsResolveToUserData($schema['properties']['data']['items'] ?? $schema['items'] ?? null, $openApi);
+    }
+
+    #[Test]
+    public function laravel_actions_route_is_analysed_through_as_controller(): void
+    {
+        $openApi = $this->generate();
+
+        $this->assertArrayNotHasKey('/actions/{arguments}', $openApi['paths']);
+        $operation = $openApi['paths']['/actions/{id}']['put'] ?? null;
+        $this->assertNotNull($operation);
+        $this->assertSame('actions.update', $operation['operationId']);
+        $this->assertSame('id', $operation['parameters'][0]['name'] ?? null);
+        $this->assertArrayHasKey('requestBody', $operation);
+        $this->assertSame('#/components/schemas/UserData', $operation['responses'][200]['content']['application/json']['schema']['$ref'] ?? null);
     }
 }
