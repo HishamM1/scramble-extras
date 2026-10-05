@@ -95,4 +95,9 @@ class UserController
     {
         return UserData::collect([], DataCollection::class)->toResponse($request);
     }
+
+    public function customQuery(): array
+    {
+        return (new UserListQuery)->get()->all();
+    }
 }

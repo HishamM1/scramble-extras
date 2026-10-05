@@ -17,6 +17,7 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/users/{id}', [UserController::class, 'show']);
         $router->post('api/users', [UserController::class, 'store']);
         $router->get('api/users', [UserController::class, 'index']);
+        $router->get('api/users-custom-query', [UserController::class, 'customQuery']);
         $router->get('api/users/search', [UserController::class, 'search']);
         $router->get('api/users-generic-docblock', [UserController::class, 'indexWithGenericDocblock']);
         $router->get('api/users-generic-docblock-plain', [UserController::class, 'listWithGenericDocblock']);
@@ -313,5 +314,20 @@ class SchemaGenerationTest extends TestCase
         $this->assertSame('id', $operation['parameters'][0]['name'] ?? null);
         $this->assertArrayHasKey('requestBody', $operation);
         $this->assertSame('#/components/schemas/UserData', $operation['responses'][200]['content']['application/json']['schema']['$ref'] ?? null);
+    }
+
+    #[Test]
+    public function custom_query_builder_subclass_filters_and_sorts_are_documented(): void
+    {
+        $parameters = $this->generate()['paths']['/users-custom-query']['get']['parameters'] ?? [];
+        $names = array_column($parameters, 'name');
+
+        $this->assertContains('filter[status]', $names);
+        $this->assertContains('filter[search]', $names);
+        $this->assertContains('sort', $names);
+
+        $sort = $parameters[array_search('sort', $names, true)];
+        $this->assertStringContainsString('`age`', $sort['description']);
+        $this->assertSame('name', $sort['schema']['default'] ?? null);
     }
 }

@@ -11,7 +11,16 @@ use Dedoc\Scramble\Support\Generator\Types\IntegerType as OpenApiIntegerType;
 use Dedoc\Scramble\Support\Generator\Types\StringType as OpenApiStringType;
 use Dedoc\Scramble\Support\RouteInfo;
 use Illuminate\Database\Eloquent\Model;
+use PhpParser\Node;
+use PhpParser\Node\Expr\New_;
+use PhpParser\Node\Name;
+use PhpParser\Node\Stmt\ClassMethod;
+use PhpParser\NodeFinder;
 use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitor\NameResolver;
+use PhpParser\NodeVisitorAbstract;
+use PhpParser\ParserFactory;
+use Spatie\QueryBuilder\QueryBuilder;
 use ReflectionClass;
 use ReflectionEnum;
 
@@ -43,15 +52,101 @@ class QueryBuilderOperationExtension extends OperationExtension
         $traverser->addVisitor($finder);
         $traverser->traverse($methodNode->stmts);
 
-        if (! $finder->found) {
-            return;
+        $usages = $finder->found ? [$finder] : $this->customQueryUsages($routeInfo);
+
+        foreach ($usages as $usage) {
+            $params = $this->buildParameters($usage);
+
+            if ($params !== []) {
+                $operation->addParameters($params);
+            }
+        }
+    }
+
+    /**
+     * @return QueryBuilderUsageVisitor[]
+     */
+    protected function customQueryUsages(RouteInfo $routeInfo): array
+    {
+        $file = $routeInfo->reflectionMethod()?->getDeclaringClass()->getFileName();
+        if (! $file) {
+            return [];
         }
 
-        $params = $this->buildParameters($finder);
+        $usages = [];
+        foreach ($this->customQueryClasses($file) as $queryClass) {
+            $queryFile = (new ReflectionClass($queryClass))->getFileName();
+            if (! $queryFile) {
+                continue;
+            }
 
-        if ($params !== []) {
-            $operation->addParameters($params);
+            $constructor = $this->findConstructor($this->parse($queryFile));
+            if ($constructor === null || $constructor->stmts === null) {
+                continue;
+            }
+
+            $usage = new QueryBuilderUsageVisitor(FileNameResolver::createForFile($queryFile));
+            $traverser = new NodeTraverser;
+            $traverser->addVisitor($usage);
+            $traverser->traverse($constructor->stmts);
+
+            if ($usage->filters !== [] || $usage->sorts !== [] || $usage->includes !== [] || $usage->fields !== []) {
+                $usage->found = true;
+                $usages[] = $usage;
+            }
         }
+
+        return $usages;
+    }
+
+    /**
+     * @return array<int, class-string<QueryBuilder>>
+     */
+    protected function customQueryClasses(string $file): array
+    {
+        $collector = new class extends NodeVisitorAbstract
+        {
+            /** @var array<string, true> */
+            public array $classes = [];
+
+            public function enterNode(Node $node)
+            {
+                if ($node instanceof New_ && $node->class instanceof Name) {
+                    $name = $node->class->toString();
+                    if (class_exists($name) && is_subclass_of($name, QueryBuilder::class)) {
+                        $this->classes[$name] = true;
+                    }
+                }
+
+                return null;
+            }
+        };
+
+        $traverser = new NodeTraverser;
+        $traverser->addVisitor(new NameResolver);
+        $traverser->addVisitor($collector);
+        $traverser->traverse($this->parse($file));
+
+        return array_keys($collector->classes);
+    }
+
+    /**
+     * @return Node\Stmt[]
+     */
+    protected function parse(string $file): array
+    {
+        return (new ParserFactory)->createForHostVersion()->parse((string) file_get_contents($file)) ?? [];
+    }
+
+    /**
+     * @param  Node[]  $nodes
+     */
+    protected function findConstructor(array $nodes): ?ClassMethod
+    {
+        return (new NodeFinder)->findFirst(
+            $nodes,
+            fn (Node $node) => $node instanceof ClassMethod && $node->name->toString() === '__construct',
+        );
     }
 
     protected function makeNameResolver(RouteInfo $routeInfo): ?FileNameResolver

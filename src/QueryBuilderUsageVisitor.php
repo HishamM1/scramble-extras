@@ -136,6 +136,10 @@ class QueryBuilderUsageVisitor extends NodeVisitorAbstract
      */
     protected function buildFilterEntry(?Node $expr, Node $hostForDoc): ?array
     {
+        while ($expr instanceof MethodCall) {
+            $expr = $expr->var;
+        }
+
         if ($expr instanceof String_) {
             return $this->withDocAttributes(['name' => $expr->value, 'kind' => 'partial'], $hostForDoc);
         }
@@ -212,16 +216,30 @@ class QueryBuilderUsageVisitor extends NodeVisitorAbstract
 
             if ($expr instanceof Array_) {
                 foreach ($expr->items as $item) {
-                    if ($item && $item->value instanceof String_) {
-                        $result[] = $item->value->value;
+                    $name = $item ? $this->stringOrFactoryName($item->value) : null;
+                    if ($name !== null) {
+                        $result[] = $name;
                     }
                 }
-            } elseif ($expr instanceof String_) {
-                $result[] = $expr->value;
+            } elseif (($name = $this->stringOrFactoryName($expr)) !== null) {
+                $result[] = $name;
             }
         }
 
         return $result;
+    }
+
+    protected function stringOrFactoryName(Node $expr): ?string
+    {
+        if ($expr instanceof String_) {
+            return $expr->value;
+        }
+
+        if ($expr instanceof StaticCall) {
+            return $this->extractFirstString($expr);
+        }
+
+        return null;
     }
 
     protected function extractClassConst(?Node $node): ?string

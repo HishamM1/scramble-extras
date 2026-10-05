@@ -56,13 +56,15 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
             LaravelDataResponseMethodReturnTypeExtension::class,
         ];
 
+        Scramble::registerExtensions($extensions);
+
         // Only register the query-builder extension when the (optional) Spatie
         // package is actually installed.
         if (class_exists(\Spatie\QueryBuilder\QueryBuilder::class)) {
-            $extensions[] = QueryBuilderOperationExtension::class;
+            Scramble::configure()->withOperationTransformers(function (OperationTransformers $transformers) {
+                $transformers->append(QueryBuilderOperationExtension::class);
+            });
         }
-
-        Scramble::registerExtensions($extensions);
 
         Scramble::configure()->withParametersExtractors(function (ParametersExtractors $extractors) {
             $extractors->prepend(LaravelDataParametersExtractor::class);
