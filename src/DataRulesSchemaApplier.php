@@ -3,9 +3,12 @@
 namespace PawelJadanowski\ScrambleExtras;
 
 use BackedEnum;
+use Dedoc\Scramble\Support\Generator\Combined\AnyOf;
+use Dedoc\Scramble\Support\Generator\Reference;
 use Dedoc\Scramble\Support\Generator\Types\ArrayType as OpenApiArrayType;
 use Dedoc\Scramble\Support\Generator\Types\BooleanType as OpenApiBooleanType;
 use Dedoc\Scramble\Support\Generator\Types\IntegerType as OpenApiIntegerType;
+use Dedoc\Scramble\Support\Generator\Types\NullType as OpenApiNullType;
 use Dedoc\Scramble\Support\Generator\Types\NumberType as OpenApiNumberType;
 use Dedoc\Scramble\Support\Generator\Types\ObjectType as OpenApiObjectType;
 use Dedoc\Scramble\Support\Generator\Types\StringType as OpenApiStringType;
@@ -202,6 +205,10 @@ class DataRulesSchemaApplier
 
     protected function refine(OpenApiType $type, array $node): OpenApiType
     {
+        if ($this->isReferenceLike($type)) {
+            return $type;
+        }
+
         $rules = $node['rules'];
         $children = $node['children'];
         $itemNode = $children['*'] ?? null;
@@ -254,8 +261,14 @@ class DataRulesSchemaApplier
 
     protected function constrain(OpenApiType $type, array $rules): OpenApiType
     {
-        if ($rules['nullable']) {
-            $type->nullable(true);
+        if ($this->isReferenceLike($type)) {
+            return $type;
+        }
+
+        if ($rules['required'] && ! $rules['nullable']) {
+            $this->setNullable($type, false);
+        } elseif ($rules['nullable']) {
+            $this->setNullable($type, true);
         }
 
         if ($rules['format'] !== null && $type instanceof OpenApiStringType && $type->format === '') {
@@ -263,7 +276,7 @@ class DataRulesSchemaApplier
         }
 
         if ($rules['in'] !== null && $type->enum === [] && ! $type instanceof OpenApiObjectType && ! $type instanceof OpenApiArrayType) {
-            $type->enum($rules['in']);
+            $type->enum($this->castValues($type, $rules['in']));
         }
 
         if ($type instanceof OpenApiStringType || $type instanceof OpenApiNumberType) {
@@ -283,5 +296,41 @@ class DataRulesSchemaApplier
         }
 
         return $type;
+    }
+
+    protected function isReferenceLike(OpenApiType $type): bool
+    {
+        return $type instanceof Reference
+            || ($type instanceof AnyOf && collect($type->items)->contains(fn (OpenApiType $item) => $item instanceof Reference));
+    }
+
+    protected function setNullable(OpenApiType $type, bool $nullable): void
+    {
+        if (! $type instanceof AnyOf) {
+            $type->nullable($nullable);
+
+            return;
+        }
+
+        $items = array_values(array_filter($type->items, fn (OpenApiType $item) => ! $item instanceof OpenApiNullType));
+
+        if ($nullable) {
+            $items[] = new OpenApiNullType;
+        }
+
+        $type->setItems($items);
+    }
+
+    protected function castValues(OpenApiType $type, array $values): array
+    {
+        if ($type instanceof OpenApiIntegerType) {
+            return array_map(fn ($value) => is_numeric($value) ? (int) $value : $value, $values);
+        }
+
+        if ($type instanceof OpenApiNumberType) {
+            return array_map(fn ($value) => is_numeric($value) ? $value + 0 : $value, $values);
+        }
+
+        return $values;
     }
 }

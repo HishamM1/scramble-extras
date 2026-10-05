@@ -16,6 +16,9 @@ class RuledData extends Data
         public ?array $tags,
         public ?array $family,
         public float|int|string|null $rate = null,
+        public ?AddressData $address = null,
+        public ?int $level = null,
+        public ?int $depth = null,
     ) {}
 
     public static function rules(): array
@@ -28,6 +31,9 @@ class RuledData extends Data
             'status' => ['required', Rule::enum(StatusEnum::class)],
             'tags' => ['array', 'max:3'],
             'tags.*' => ['string', 'max:10'],
+            'address.city' => ['required', 'string'],
+            'level' => ['in:1,2,3'],
+            'depth' => ['required', 'integer'],
             'family' => ['required', 'array'],
             'family.phone' => ['required', 'string'],
             'family.parents' => ['array'],

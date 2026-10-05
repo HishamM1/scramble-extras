@@ -118,6 +118,33 @@ class SchemaGenerationTest extends TestCase
     }
 
     #[Test]
+    public function nested_rules_keep_reference_properties_intact(): void
+    {
+        $schema = $this->resolveRef($this->generate()['paths']['/ruled']['post']['requestBody']['content']['application/json']['schema']);
+        $address = json_encode($schema['properties']['address'], JSON_UNESCAPED_SLASHES);
+
+        $this->assertStringContainsString('#/components/schemas/AddressData', $address);
+        $this->assertArrayNotHasKey('properties', $schema['properties']['address']);
+    }
+
+    #[Test]
+    public function in_rule_casts_values_to_the_property_type(): void
+    {
+        $schema = $this->resolveRef($this->generate()['paths']['/ruled']['post']['requestBody']['content']['application/json']['schema']);
+
+        $this->assertSame([1, 2, 3], array_values(array_filter($schema['properties']['level']['enum'], fn ($v) => $v !== null)));
+    }
+
+    #[Test]
+    public function required_rule_removes_null_from_the_type(): void
+    {
+        $schema = $this->resolveRef($this->generate()['paths']['/ruled']['post']['requestBody']['content']['application/json']['schema']);
+
+        $this->assertSame('integer', $schema['properties']['depth']['type']);
+        $this->assertContains('depth', $schema['required']);
+    }
+
+    #[Test]
     public function action_request_parameter_produces_no_body(): void
     {
         $operation = $this->generate()['paths']['/request-action']['post'];
