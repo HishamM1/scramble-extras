@@ -10,6 +10,8 @@ use Dedoc\Scramble\Support\Type\GenericClassStringType;
 use Dedoc\Scramble\Support\Type\Literal\LiteralStringType;
 use Dedoc\Scramble\Support\Type\ObjectType;
 use Dedoc\Scramble\Support\Type\Type;
+use ReflectionMethod;
+use ReflectionNamedType;
 use Spatie\LaravelData\Contracts\BaseData;
 use Spatie\LaravelData\CursorPaginatedDataCollection;
 use Spatie\LaravelData\DataCollection;
@@ -32,7 +34,30 @@ class LaravelDataReturnTypeExtension implements StaticMethodReturnTypeExtension
 
     public function getStaticMethodReturnType(StaticMethodCallEvent $event): ?Type
     {
-        return self::resolveReturnType($event->callee, $event->name, $event->getArg('into', 1));
+        return self::resolveReturnType($event->callee, $event->name, $event->getArg('into', 1))
+            ?? self::resolveConstructorReturnType($event->callee, $event->name);
+    }
+
+    public static function resolveConstructorReturnType(string $dataClass, string $method): ?Type
+    {
+        if (! method_exists($dataClass, $method)) {
+            return null;
+        }
+
+        $reflection = new ReflectionMethod($dataClass, $method);
+        $returnType = $reflection->getReturnType();
+
+        if (! $reflection->isStatic() || ! $returnType instanceof ReflectionNamedType) {
+            return null;
+        }
+
+        $name = $returnType->getName();
+
+        if (in_array($name, ['static', 'self'], true)) {
+            return new ObjectType($dataClass);
+        }
+
+        return is_a($name, BaseData::class, true) ? new ObjectType($name) : null;
     }
 
     public static function resolveReturnType(string $dataClass, string $method, ?Type $intoArg): ?Type

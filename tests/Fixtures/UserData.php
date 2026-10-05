@@ -37,4 +37,9 @@ class UserData extends Data
         #[Hidden]
         public string $internalToken = '',
     ) {}
+
+    public static function fromModel(User $user): static
+    {
+        return new static($user->id, '', StatusEnum::Active, '');
+    }
 }

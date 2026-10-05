@@ -2,6 +2,8 @@
 
 namespace PawelJadanowski\ScrambleExtras\Tests\Fixtures;
 
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Spatie\LaravelData\DataCollection;
 use Spatie\LaravelData\PaginatedDataCollection;
 use Spatie\QueryBuilder\AllowedFilter;
@@ -72,5 +74,25 @@ class UserController
             ->jsonPaginate();
 
         return [];
+    }
+
+    public function showResponse(Request $request, User $user)
+    {
+        return UserData::fromModel($user)->toResponse($request);
+    }
+
+    public function created(Request $request)
+    {
+        return UserData::from(['id' => 1])->toResponse($request)->setStatusCode(201);
+    }
+
+    public function pagedResponse(Request $request, LengthAwarePaginator $paginator)
+    {
+        return UserData::collect($paginator, PaginatedDataCollection::class)->toResponse($request);
+    }
+
+    public function listResponse(Request $request)
+    {
+        return UserData::collect([], DataCollection::class)->toResponse($request);
     }
 }

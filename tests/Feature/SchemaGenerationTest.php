@@ -20,6 +20,10 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/users-generic-docblock', [UserController::class, 'indexWithGenericDocblock']);
         $router->get('api/users-generic-docblock-plain', [UserController::class, 'listWithGenericDocblock']);
         $router->match(['put', 'patch'], 'api/users/{id}', [UserController::class, 'update']);
+        $router->get('api/user-responses/{user}', [UserController::class, 'showResponse']);
+        $router->post('api/user-responses', [UserController::class, 'created']);
+        $router->get('api/user-responses-paged', [UserController::class, 'pagedResponse']);
+        $router->get('api/user-responses-list', [UserController::class, 'listResponse']);
     }
 
     /**
@@ -256,5 +260,42 @@ class SchemaGenerationTest extends TestCase
 
         $this->assertArrayHasKey('422', $openApi['paths']['/users']['post']['responses'] ?? []);
         $this->assertArrayHasKey('422', $openApi['paths']['/users/{id}']['put']['responses'] ?? []);
+    }
+
+    #[Test]
+    public function to_response_on_custom_static_constructor_resolves_to_data_schema(): void
+    {
+        $schema = $this->generate()['paths']['/user-responses/{user}']['get']['responses'][200]['content']['application/json']['schema'] ?? [];
+
+        $this->assertSame('#/components/schemas/UserData', $schema['$ref'] ?? null);
+    }
+
+    #[Test]
+    public function to_response_chain_with_set_status_code_documents_that_status(): void
+    {
+        $responses = $this->generate()['paths']['/user-responses']['post']['responses'] ?? [];
+
+        $this->assertArrayHasKey('201', $responses);
+        $this->assertSame('#/components/schemas/UserData', $responses[201]['content']['application/json']['schema']['$ref'] ?? null);
+    }
+
+    #[Test]
+    public function to_response_on_paginated_collection_gives_envelope_with_typed_items(): void
+    {
+        $openApi = $this->generate();
+        $schema = $openApi['paths']['/user-responses-paged']['get']['responses'][200]['content']['application/json']['schema'] ?? [];
+
+        $this->assertArrayHasKey('data', $schema['properties'] ?? []);
+        $this->assertArrayHasKey('meta', $schema['properties'] ?? []);
+        $this->assertItemsResolveToUserData($schema['properties']['data']['items'] ?? null, $openApi);
+    }
+
+    #[Test]
+    public function to_response_on_data_collection_gives_typed_items(): void
+    {
+        $openApi = $this->generate();
+        $schema = $openApi['paths']['/user-responses-list']['get']['responses'][200]['content']['application/json']['schema'] ?? [];
+
+        $this->assertItemsResolveToUserData($schema['properties']['data']['items'] ?? $schema['items'] ?? null, $openApi);
     }
 }

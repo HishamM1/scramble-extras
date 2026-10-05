@@ -49,6 +49,7 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
             CursorPaginatedDataCollectionTypeToSchemaExtension::class,
             DataCollectionTypeToSchemaExtension::class,
             LaravelDataReturnTypeExtension::class,
+            LaravelDataResponseMethodReturnTypeExtension::class,
         ];
 
         // Only register the query-builder extension when the (optional) Spatie
