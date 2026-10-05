@@ -86,6 +86,7 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
             $transformers->prepend(LaravelDataValidationExceptionExtension::class);
             $transformers->append(MethodAwareOperationIdExtension::class);
             $transformers->append(PaginationParametersOperationExtension::class);
+            $transformers->append(ArrayEnumOperationExtension::class);
         });
 
         // resolveOperationMethodsUsing() doesn't exist before dedoc/scramble

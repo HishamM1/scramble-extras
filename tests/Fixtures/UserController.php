@@ -75,6 +75,11 @@ class UserController
         return MixedPayloadData::from(['payload' => null, 'items' => [], 'meta' => [], 'name' => '']);
     }
 
+    public function tree(TreeData $data): TreeData
+    {
+        return $data;
+    }
+
     public function nestedJson(NestedJsonData $data): array
     {
         return [];

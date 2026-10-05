@@ -2,7 +2,14 @@
 
 namespace PawelJadanowski\ScrambleExtras\Tests\Unit;
 
+use Dedoc\Scramble\Support\Generator\Operation;
+use Dedoc\Scramble\Support\Generator\Parameter;
+use Dedoc\Scramble\Support\Generator\RequestBodyObject;
+use Dedoc\Scramble\Support\Generator\Schema;
+use Dedoc\Scramble\Support\Generator\Types\ArrayType;
+use Dedoc\Scramble\Support\Generator\Types\ObjectType;
 use Dedoc\Scramble\Support\Generator\Types\StringType;
+use PawelJadanowski\ScrambleExtras\ArrayEnumOperationExtension;
 use PawelJadanowski\ScrambleExtras\CachedArrayType;
 use PawelJadanowski\ScrambleExtras\CachedScalarType;
 use PawelJadanowski\ScrambleExtras\CachedSchemaType;
@@ -165,5 +172,28 @@ class SupportTypesTest extends TestCase
         $cached = new CachedArrayType(['type' => 'array', 'items' => ['type' => 'string'], 'minItems' => 2]);
         $cached->setMin(null);
         $this->assertArrayNotHasKey('minItems', $cached->toArray());
+    }
+
+    #[Test]
+    public function array_enum_moves_to_items_in_parameters_and_body_properties(): void
+    {
+        $makeArray = fn () => (new ArrayType)->setItems(new StringType)->enum(['a', 'b']);
+
+        $operation = (new Operation('get'))->addParameters([
+            (new Parameter('status[]', 'query'))->setSchema(Schema::fromType($makeArray())),
+        ]);
+        $body = (new ObjectType)->addProperty('tags', $makeArray());
+        $operation->addRequestBodyObject(RequestBodyObject::make()->setContent('application/json', Schema::fromType($body)));
+
+        $extension = (new \ReflectionClass(ArrayEnumOperationExtension::class))->newInstanceWithoutConstructor();
+        $extension->handle($operation, (new \ReflectionClass(\Dedoc\Scramble\Support\RouteInfo::class))->newInstanceWithoutConstructor());
+
+        $param = $operation->parameters[0]->schema->type->toArray();
+        $this->assertArrayNotHasKey('enum', $param);
+        $this->assertSame(['a', 'b'], $param['items']['enum']);
+
+        $tags = $body->toArray()['properties']['tags'];
+        $this->assertArrayNotHasKey('enum', $tags);
+        $this->assertSame(['a', 'b'], $tags['items']['enum']);
     }
 }

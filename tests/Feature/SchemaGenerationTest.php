@@ -32,6 +32,7 @@ class SchemaGenerationTest extends TestCase
         $router->post('api/attribute-files', [UserController::class, 'attributeFiles']);
         $router->post('api/multipart-lines', [UserController::class, 'multipartLines']);
         $router->get('api/mixed-payload', [UserController::class, 'mixedPayload']);
+        $router->post('api/tree', [UserController::class, 'tree']);
         $router->post('api/nested-json', [UserController::class, 'nestedJson']);
         $router->post('api/map-rules', [UserController::class, 'mapRules']);
         $router->get('api/filter-array', FilterArrayAction::class);
@@ -154,6 +155,28 @@ class SchemaGenerationTest extends TestCase
         $body = $this->resolveRef($body);
         $this->assertSame('number', $body['properties']['amount']['type']);
         $this->assertContains('amount', $body['required']);
+    }
+
+    #[Test]
+    public function in_rules_on_array_items_do_not_put_an_enum_on_the_array(): void
+    {
+        $paths = $this->generate()['paths']['/rules-action'];
+
+        $status = collect($paths['get']['parameters'])->firstWhere('name', 'filter[status][]');
+        $this->assertArrayNotHasKey('enum', $status['schema']);
+        $this->assertSame(['active', 'archived'], $status['schema']['items']['enum']);
+
+        $body = $this->resolveRef($paths['post']['requestBody']['content']['application/json']['schema']);
+        $this->assertArrayNotHasKey('enum', $body['properties']['filter']['properties']['status']);
+        $this->assertSame(['active', 'archived'], $body['properties']['filter']['properties']['status']['items']['enum']);
+    }
+
+    #[Test]
+    public function self_referencing_data_in_a_request_body_exports_without_recursing_forever(): void
+    {
+        $schema = $this->resolveRef($this->generate()['paths']['/tree']['post']['requestBody']['content']['application/json']['schema']);
+
+        $this->assertArrayHasKey('children', $schema['properties']);
     }
 
     #[Test]
