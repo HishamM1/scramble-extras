@@ -53,15 +53,16 @@ class LaravelDataReflector
             if ($entry !== null && ($entry['mtime'] ?? 0) >= $mtime) {
                 $this->materializeDeps($entry['deps'] ?? []);
 
-                return new CachedSchemaType($entry['array']);
+                return new CachedSchemaType($this->decodeRefs($entry['array']));
             }
 
             $schema = $this->doBuildSchema($dataClass, $input);
+            $array = $this->encodeRefs($schema->toArray(), $this->refNames());
 
             $cache->put($key, [
                 'mtime' => $mtime,
-                'deps' => $this->extractDeps($schema->toArray()),
-                'array' => $schema->toArray(),
+                'deps' => $this->extractDeps($array),
+                'array' => $array,
             ]);
 
             return $schema;
@@ -141,56 +142,63 @@ class LaravelDataReflector
         return (int) filemtime($file);
     }
 
-    /**
-     * @param  array<int, string>  $deps
-     */
     protected function materializeDeps(array $deps): void
     {
         foreach ($deps as $dep) {
-            if (! is_string($dep)) {
-                continue;
+            if (class_exists($dep) || enum_exists($dep)) {
+                $this->openApiTransformer->transform(new ScrambleObjectType($dep));
             }
-            if (! class_exists($dep) && ! enum_exists($dep)) {
-                continue;
-            }
-            $this->openApiTransformer->transform(new ScrambleObjectType($dep));
         }
     }
 
-    /**
-     * @param  array<string, mixed>  $schemaArray
-     * @return array<int, string>
-     */
-    protected function extractDeps(array $schemaArray): array
+    protected function extractDeps(array $array): array
     {
         $deps = [];
-        $this->walkRefs($schemaArray, $deps);
+        $prefix = '#/components/fqcn/';
+
+        array_walk_recursive($array, function ($value, $key) use (&$deps, $prefix) {
+            if ($key === '$ref' && is_string($value) && str_starts_with($value, $prefix)) {
+                $deps[] = substr($value, strlen($prefix));
+            }
+        });
 
         return array_values(array_unique($deps));
     }
 
-    /**
-     * @param  array<int, string>  $deps
-     */
-    protected function walkRefs(mixed $node, array &$deps): void
+    protected function encodeRefs(array $array, array $names): array
     {
-        if (! is_array($node)) {
-            return;
-        }
+        return $this->mapRefs($array, fn (string $name): ?string => isset($names[$name]) ? '#/components/fqcn/'.$names[$name] : null);
+    }
+
+    protected function decodeRefs(array $array): array
+    {
+        $prefix = '#/components/fqcn/';
+
+        return $this->mapRefs($array, fn (string $key): ?string => '#/components/schemas/'.$this->openApiTransformer->context->references->schemas->uniqueName($key), $prefix);
+    }
+
+    protected function mapRefs(array $node, \Closure $map, string $prefix = '#/components/schemas/'): array
+    {
         foreach ($node as $k => $v) {
-            if ($k === '$ref' && is_string($v)) {
-                if (preg_match('~^#/components/schemas/(.+)$~', $v, $m)) {
-                    $fqcn = DataClassNameRegistry::resolve($m[1]);
-                    if ($fqcn !== null) {
-                        $deps[] = $fqcn;
-                    }
-                }
-                continue;
-            }
-            if (is_array($v)) {
-                $this->walkRefs($v, $deps);
+            if ($k === '$ref' && is_string($v) && str_starts_with($v, $prefix)) {
+                $node[$k] = $map(substr($v, strlen($prefix))) ?? $v;
+            } elseif (is_array($v)) {
+                $node[$k] = $this->mapRefs($v, $map, $prefix);
             }
         }
+
+        return $node;
+    }
+
+    protected function refNames(): array
+    {
+        $names = [];
+
+        foreach ($this->openApiTransformer->context->references->schemas->items as $fqcn => $references) {
+            $names[$references[0]->shortName ?: $references[0]->fullName] = $fqcn;
+        }
+
+        return $names;
     }
 
     /**
@@ -394,7 +402,6 @@ class LaravelDataReflector
         }
 
         $scrambleType = PhpDocTypeHelper::toType($varTags[0]->type);
-        $this->registerClassesIn($scrambleType);
 
         return $this->openApiTransformer->transform($scrambleType);
     }
@@ -405,43 +412,7 @@ class LaravelDataReflector
             return new OpenApiUnknownType;
         }
 
-        DataClassNameRegistry::register($className);
-
         return $this->openApiTransformer->transform(new ScrambleObjectType($className));
-    }
-
-    protected function registerClassesIn(\Dedoc\Scramble\Support\Type\Type $type): void
-    {
-        if ($type instanceof ScrambleObjectType) {
-            if (class_exists($type->name) || enum_exists($type->name)) {
-                DataClassNameRegistry::register($type->name);
-            }
-
-            if ($type instanceof \Dedoc\Scramble\Support\Type\Generic) {
-                foreach ($type->templateTypes as $t) {
-                    $this->registerClassesIn($t);
-                }
-            }
-
-            return;
-        }
-        if ($type instanceof \Dedoc\Scramble\Support\Type\ArrayType) {
-            $this->registerClassesIn($type->value);
-
-            return;
-        }
-        if ($type instanceof \Dedoc\Scramble\Support\Type\Union) {
-            foreach ($type->types as $t) {
-                $this->registerClassesIn($t);
-            }
-
-            return;
-        }
-        if ($type instanceof \Dedoc\Scramble\Support\Type\KeyedArrayType) {
-            foreach ($type->items as $item) {
-                $this->registerClassesIn($item->value);
-            }
-        }
     }
 
     protected function extractDocVarType(ReflectionProperty $property): ?string

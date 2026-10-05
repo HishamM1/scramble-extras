@@ -30,7 +30,11 @@ class CachedSchemaType extends OpenApiObjectType
 
     public function setDescription(string $description): Type
     {
-        $this->cachedArray['description'] = $description;
+        if ($description === '') {
+            unset($this->cachedArray['description']);
+        } else {
+            $this->cachedArray['description'] = $description;
+        }
         $this->description = $description;
 
         return $this;

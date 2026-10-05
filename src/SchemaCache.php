@@ -30,7 +30,7 @@ class SchemaCache
     /**
      * Bump when the cached array shape produced by this package changes.
      */
-    private const FORMAT_VERSION = 1;
+    private const FORMAT_VERSION = 2;
 
     /** @var array<string, array{mtime: int, deps: array<int, string>, array: array<string, mixed>}>|null */
     private ?array $entries = null;
@@ -149,6 +149,14 @@ class SchemaCache
             ? (InstalledVersions::getVersion('dedoc/scramble') ?? 'unknown')
             : 'unknown';
 
-        return self::FORMAT_VERSION.'|'.$scrambleVersion;
+        return self::FORMAT_VERSION.'|'.$scrambleVersion.'|'.$this->sourceHash();
+    }
+
+    private function sourceHash(): string
+    {
+        $files = glob(__DIR__.'/*.php') ?: [];
+        sort($files);
+
+        return md5(implode('|', array_map(fn (string $file) => md5_file($file), $files)));
     }
 }
