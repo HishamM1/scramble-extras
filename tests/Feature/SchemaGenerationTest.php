@@ -91,6 +91,7 @@ class SchemaGenerationTest extends TestCase
     public function rules_are_mapped_to_request_schema_constraints(): void
     {
         $schema = $this->generate()['paths']['/ruled']['post']['requestBody']['content']['application/json']['schema'];
+        $this->assertSame('#/components/schemas/RuledDataInput', $schema['$ref'] ?? null);
         $schema = $this->resolveRef($schema);
         $p = $schema['properties'];
 
@@ -113,12 +114,6 @@ class SchemaGenerationTest extends TestCase
 
     private function resolveRef(array $schema): array
     {
-        foreach ($schema['allOf'] ?? [] as $part) {
-            if (isset($part['properties'])) {
-                return $part;
-            }
-        }
-
         if (isset($schema['$ref'])) {
             $name = basename($schema['$ref']);
 
@@ -129,7 +124,7 @@ class SchemaGenerationTest extends TestCase
     }
 
     #[Test]
-    public function request_body_uses_inlined_input_schema(): void
+    public function request_body_references_input_schema(): void
     {
         $openApi = $this->generate();
 
@@ -137,9 +132,9 @@ class SchemaGenerationTest extends TestCase
         $this->assertNotNull($requestBody, 'POST /users should declare a request body');
 
         $schema = $requestBody['content']['application/json']['schema'] ?? [];
+        $this->assertSame('#/components/schemas/UserDataInput', $schema['$ref'] ?? null);
+        $schema = $this->resolveRef($schema);
 
-        // Inlined input schema (not a $ref to the output component), so it can
-        // faithfully reflect input-only rules.
         $this->assertArrayHasKey('properties', $schema);
         $properties = $schema['properties'];
 

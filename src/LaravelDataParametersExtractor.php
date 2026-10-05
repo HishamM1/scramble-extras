@@ -32,6 +32,10 @@ class LaravelDataParametersExtractor implements ParameterExtractor
                 continue;
             }
 
+            $parameterExtractionResults = array_values(array_filter(
+                $parameterExtractionResults,
+                fn (ParametersExtractionResult $result) => $result->sourceClass !== $dataClass,
+            ));
             $parameterExtractionResults[] = $this->buildResult($dataClass);
         }
 
@@ -69,18 +73,10 @@ class LaravelDataParametersExtractor implements ParameterExtractor
         $body = (new Parameter('*', 'body'))
             ->setSchema(Schema::fromType($reflector->buildSchema($dataClass, input: true)));
 
-        // The body schema is inlined (no `schemaName`) on purpose. A Data class
-        // is frequently used as both a response and a request body, and its
-        // input and output projections differ: `#[Computed]` props are output
-        // only, `#[Hidden]` props are input only, `Optional`/`MapInputName`
-        // change required-ness and naming. If we registered the input schema
-        // under the bare class name, it would collide with the output component
-        // of the same name — and whichever was generated last would silently
-        // win, leaving the request body describing the wrong shape. Inlining
-        // keeps the request body faithful to the input rules regardless.
         return new ParametersExtractionResult(
             parameters: [$body],
-            schemaName: null,
+            schemaName: (new ReflectionClass($dataClass))->getShortName().'Input',
+            sourceClass: $dataClass,
         );
     }
 }
