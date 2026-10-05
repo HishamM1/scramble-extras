@@ -107,6 +107,7 @@ class SchemaGenerationTest extends TestCase
         $this->assertSame(['phone'], array_values(array_intersect(['phone'], $p['family']['required'])));
         $this->assertSame('array', $p['family']['properties']['parents']['type']);
         $this->assertContains('name', $p['family']['properties']['parents']['items']['required']);
+        $this->assertEqualsCanonicalizing(['number', 'string', 'null'], (array) $p['rate']['type']);
         foreach (['name', 'age', 'kind', 'status', 'family'] as $field) {
             $this->assertContains($field, $schema['required']);
         }

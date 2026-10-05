@@ -15,6 +15,7 @@ class RuledData extends Data
         public ?string $status,
         public ?array $tags,
         public ?array $family,
+        public float|int|string|null $rate = null,
     ) {}
 
     public static function rules(): array

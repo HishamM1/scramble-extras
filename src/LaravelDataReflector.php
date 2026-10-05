@@ -4,10 +4,12 @@ namespace PawelJadanowski\ScrambleExtras;
 
 use Dedoc\Scramble\Infer\Services\FileNameResolver;
 use Dedoc\Scramble\PhpDoc\PhpDocTypeHelper;
+use Dedoc\Scramble\Support\Generator\Combined\AnyOf;
 use Dedoc\Scramble\Support\Generator\Components;
 use Dedoc\Scramble\Support\Generator\Types\ArrayType as OpenApiArrayType;
 use Dedoc\Scramble\Support\Generator\Types\BooleanType as OpenApiBooleanType;
 use Dedoc\Scramble\Support\Generator\Types\IntegerType as OpenApiIntegerType;
+use Dedoc\Scramble\Support\Generator\Types\NullType as OpenApiNullType;
 use Dedoc\Scramble\Support\Generator\Types\NumberType as OpenApiNumberType;
 use Dedoc\Scramble\Support\Generator\Types\ObjectType as OpenApiObjectType;
 use Dedoc\Scramble\Support\Generator\Types\StringType as OpenApiStringType;
@@ -349,13 +351,28 @@ class LaravelDataReflector
             }
         }
 
+        $hasNull = count(array_filter($types, fn (ReflectionNamedType $type) => $type->getName() === 'null')) > 0;
+        $types = array_values(array_filter($types, fn (ReflectionNamedType $type) => $type->getName() !== 'null'));
+
         if (count($types) === 0) {
             return new OpenApiUnknownType;
         }
 
-        $primary = $types[0];
-        $name = $primary->getName();
+        if (count($types) > 1) {
+            $items = array_map(fn (ReflectionNamedType $type) => $this->resolveNamedType($type->getName()), $types);
 
+            if ($hasNull) {
+                $items[] = new OpenApiNullType;
+            }
+
+            return (new AnyOf)->setItems($items);
+        }
+
+        return $this->resolveNamedType($types[0]->getName());
+    }
+
+    protected function resolveNamedType(string $name): OpenApiType
+    {
         return match ($name) {
             'int' => new OpenApiIntegerType,
             'string' => new OpenApiStringType,
