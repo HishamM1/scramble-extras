@@ -33,16 +33,24 @@ class CursorPaginatedDataCollectionTypeToSchemaExtension extends TypeToSchemaExt
     {
         $itemSchema = $this->getItemSchema($type);
 
-        $object = new OpenApiObjectType;
-        $object
-            ->addProperty('data', (new OpenApiArrayType)->setItems($itemSchema))
+        $nullableUrl = (new OpenApiStringType)->format('uri')->nullable(true);
+
+        $meta = new OpenApiObjectType;
+        $meta
             ->addProperty('path', (new OpenApiStringType)->format('uri'))
             ->addProperty('per_page', new OpenApiIntegerType)
             ->addProperty('next_cursor', (new OpenApiStringType)->nullable(true))
-            ->addProperty('next_page_url', (new OpenApiStringType)->format('uri')->nullable(true))
+            ->addProperty('next_page_url', $nullableUrl)
             ->addProperty('prev_cursor', (new OpenApiStringType)->nullable(true))
-            ->addProperty('prev_page_url', (new OpenApiStringType)->format('uri')->nullable(true))
-            ->setRequired(['data', 'path', 'per_page']);
+            ->addProperty('prev_page_url', $nullableUrl)
+            ->setRequired(['path', 'per_page', 'next_cursor', 'next_page_url', 'prev_cursor', 'prev_page_url']);
+
+        $object = new OpenApiObjectType;
+        $object
+            ->addProperty('data', (new OpenApiArrayType)->setItems($itemSchema))
+            ->addProperty('links', PaginatedDataCollectionTypeToSchemaExtension::linksArray())
+            ->addProperty('meta', $meta)
+            ->setRequired(['data', 'links', 'meta']);
 
         return $object;
     }

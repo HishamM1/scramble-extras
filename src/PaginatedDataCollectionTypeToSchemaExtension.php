@@ -36,7 +36,7 @@ class PaginatedDataCollectionTypeToSchemaExtension extends TypeToSchemaExtension
         $object = new OpenApiObjectType;
         $object
             ->addProperty('data', (new OpenApiArrayType)->setItems($itemSchema))
-            ->addProperty('links', $this->linksObject())
+            ->addProperty('links', self::linksArray())
             ->addProperty('meta', $this->metaObject())
             ->setRequired(['data', 'links', 'meta']);
 
@@ -86,40 +86,42 @@ class PaginatedDataCollectionTypeToSchemaExtension extends TypeToSchemaExtension
         return $this->openApiTransformer->transform(new ScrambleObjectType($itemClass));
     }
 
-    protected function linksObject(): OpenApiObjectType
+    public static function linksArray(): OpenApiArrayType
     {
-        $object = new OpenApiObjectType;
+        $linkObject = new OpenApiObjectType;
+        $linkObject
+            ->addProperty('url', (new OpenApiStringType)->format('uri')->nullable(true))
+            ->addProperty('label', new OpenApiStringType)
+            ->addProperty('page', (new OpenApiIntegerType)->nullable(true))
+            ->addProperty('active', new OpenApiBooleanType)
+            ->setRequired(['url', 'label', 'active']);
 
-        $nullableUrl = (new OpenApiStringType)->format('uri')->nullable(true);
-        $object
-            ->addProperty('first', $nullableUrl)
-            ->addProperty('last', $nullableUrl)
-            ->addProperty('prev', $nullableUrl)
-            ->addProperty('next', $nullableUrl);
-
-        return $object;
+        return (new OpenApiArrayType)->setItems($linkObject);
     }
 
     protected function metaObject(): OpenApiObjectType
     {
         $object = new OpenApiObjectType;
 
+        $url = (new OpenApiStringType)->format('uri');
+        $nullableUrl = (new OpenApiStringType)->format('uri')->nullable(true);
+
         $object
             ->addProperty('current_page', new OpenApiIntegerType)
+            ->addProperty('first_page_url', $url)
             ->addProperty('from', (new OpenApiIntegerType)->nullable(true))
             ->addProperty('last_page', new OpenApiIntegerType)
-            ->addProperty('path', (new OpenApiStringType)->format('uri'))
+            ->addProperty('last_page_url', $url)
+            ->addProperty('next_page_url', $nullableUrl)
+            ->addProperty('path', $url)
             ->addProperty('per_page', new OpenApiIntegerType)
+            ->addProperty('prev_page_url', $nullableUrl)
             ->addProperty('to', (new OpenApiIntegerType)->nullable(true))
-            ->addProperty('total', new OpenApiIntegerType);
-
-        $linkObject = new OpenApiObjectType;
-        $linkObject
-            ->addProperty('url', (new OpenApiStringType)->format('uri')->nullable(true))
-            ->addProperty('label', new OpenApiStringType)
-            ->addProperty('active', new OpenApiBooleanType);
-
-        $object->addProperty('links', (new OpenApiArrayType)->setItems($linkObject));
+            ->addProperty('total', new OpenApiIntegerType)
+            ->setRequired([
+                'current_page', 'first_page_url', 'from', 'last_page', 'last_page_url',
+                'next_page_url', 'path', 'per_page', 'prev_page_url', 'to', 'total',
+            ]);
 
         return $object;
     }

@@ -56,6 +56,8 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
             UploadedFileTypeToSchemaExtension::class,
             LaravelDataReturnTypeExtension::class,
             LaravelDataResponseMethodReturnTypeExtension::class,
+            PaginatedListResponseReturnTypeExtension::class,
+            PaginatedListResponseTypeToSchemaExtension::class,
         ];
 
         Scramble::registerExtensions($extensions);

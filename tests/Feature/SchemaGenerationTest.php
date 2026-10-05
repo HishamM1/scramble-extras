@@ -39,6 +39,9 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/user-responses/{user}', [UserController::class, 'showResponse']);
         $router->post('api/user-responses', [UserController::class, 'created']);
         $router->get('api/user-responses-paged', [UserController::class, 'pagedResponse']);
+        $router->get('api/user-responses-meta-list', [UserController::class, 'metaListResponse']);
+        $router->get('api/user-responses-ternary-meta-list', [UserController::class, 'ternaryMetaListResponse']);
+        $router->get('api/user-responses-cursor', [UserController::class, 'cursorResponse']);
         $router->get('api/user-responses-list', [UserController::class, 'listResponse']);
     }
 
@@ -466,6 +469,77 @@ class SchemaGenerationTest extends TestCase
         $this->assertArrayHasKey('data', $schema['properties'] ?? []);
         $this->assertArrayHasKey('meta', $schema['properties'] ?? []);
         $this->assertItemsResolveToUserData($schema['properties']['data']['items'] ?? null, $openApi);
+
+        $meta = $schema['properties']['meta'];
+        foreach (['first_page_url', 'last_page_url', 'next_page_url', 'prev_page_url'] as $key) {
+            $this->assertArrayHasKey($key, $meta['properties']);
+            $this->assertSame('uri', $meta['properties'][$key]['format'] ?? null);
+        }
+        $this->assertContains('first_page_url', $meta['required']);
+        $this->assertContains('last_page_url', $meta['required']);
+        $this->assertSame(['string', 'null'], $meta['properties']['next_page_url']['type']);
+        $this->assertSame(['string', 'null'], $meta['properties']['prev_page_url']['type']);
+        $this->assertSame('string', $meta['properties']['last_page_url']['type']);
+        $this->assertArrayNotHasKey('links', $meta['properties']);
+        $this->assertCount(11, $meta['properties']);
+
+        $links = $schema['properties']['links'];
+        $this->assertSame('array', $links['type']);
+        $this->assertSame(['url', 'label', 'active'], $links['items']['required']);
+        $this->assertSame(['string', 'null'], $links['items']['properties']['url']['type']);
+        $this->assertSame(['integer', 'null'], $links['items']['properties']['page']['type']);
+        $this->assertNotContains('page', $links['items']['required']);
+        $this->assertSame('boolean', $links['items']['properties']['active']['type']);
+    }
+
+    #[Test]
+    public function paginated_list_response_with_unresolvable_meta_falls_back_to_paginated_envelope(): void
+    {
+        $openApi = $this->generate();
+        $schema = $openApi['paths']['/user-responses-ternary-meta-list']['get']['responses'][200]['content']['application/json']['schema'] ?? [];
+
+        $this->assertSame('object', $schema['type'] ?? null);
+        $this->assertSame(['data', 'links', 'meta'], $schema['required']);
+        $this->assertItemsResolveToUserData($schema['properties']['data']['items'] ?? null, $openApi);
+        $this->assertArrayHasKey('current_page', $schema['properties']['meta']['properties']);
+    }
+
+    #[Test]
+    public function to_response_on_cursor_paginated_collection_matches_laravel_data_envelope(): void
+    {
+        $openApi = $this->generate();
+        $schema = $openApi['paths']['/user-responses-cursor']['get']['responses'][200]['content']['application/json']['schema'] ?? [];
+
+        $this->assertSame(['data', 'links', 'meta'], $schema['required']);
+        $this->assertItemsResolveToUserData($schema['properties']['data']['items'] ?? null, $openApi);
+        $this->assertSame('array', $schema['properties']['links']['type']);
+
+        $meta = $schema['properties']['meta'];
+        $this->assertSame(
+            ['path', 'per_page', 'next_cursor', 'next_page_url', 'prev_cursor', 'prev_page_url'],
+            array_keys($meta['properties']),
+        );
+        $this->assertSame($meta['required'], array_keys($meta['properties']));
+        $this->assertSame(['string', 'null'], $meta['properties']['next_cursor']['type']);
+        $this->assertSame(['string', 'null'], $meta['properties']['prev_page_url']['type']);
+    }
+
+    #[Test]
+    public function paginated_list_response_merges_meta_data_into_paginator_meta(): void
+    {
+        $openApi = $this->generate();
+        $schema = $openApi['paths']['/user-responses-meta-list']['get']['responses'][200]['content']['application/json']['schema'] ?? [];
+
+        $this->assertItemsResolveToUserData($schema['properties']['data']['items'] ?? null, $openApi);
+        $this->assertArrayHasKey('links', $schema['properties']);
+
+        $meta = $schema['properties']['meta'];
+        foreach (['current_page', 'first_page_url', 'last_page_url', 'next_page_url', 'prev_page_url', 'total', 'active_count', 'note'] as $key) {
+            $this->assertArrayHasKey($key, $meta['properties'], $key);
+        }
+        $this->assertContains('active_count', $meta['required']);
+        $this->assertNotContains('note', $meta['required']);
+        $this->assertContains('total', $meta['required']);
     }
 
     #[Test]

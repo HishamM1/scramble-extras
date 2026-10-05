@@ -4,6 +4,8 @@ namespace PawelJadanowski\ScrambleExtras\Tests\Fixtures;
 
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use PawelJadanowski\ScrambleExtras\PaginatedListResponse;
+use Spatie\LaravelData\CursorPaginatedDataCollection;
 use Spatie\LaravelData\DataCollection;
 use Spatie\LaravelData\PaginatedDataCollection;
 use Spatie\QueryBuilder\AllowedFilter;
@@ -111,6 +113,29 @@ class UserController
     public function pagedResponse(Request $request, LengthAwarePaginator $paginator)
     {
         return UserData::collect($paginator, PaginatedDataCollection::class)->toResponse($request);
+    }
+
+    public function metaListResponse(Request $request, LengthAwarePaginator $paginator)
+    {
+        return PaginatedListResponse::make(
+            UserData::collect($paginator, PaginatedDataCollection::class),
+            $request,
+            new UserListMetaData(3),
+        );
+    }
+
+    public function ternaryMetaListResponse(Request $request, LengthAwarePaginator $paginator, bool $flag)
+    {
+        return PaginatedListResponse::make(
+            UserData::collect($paginator, PaginatedDataCollection::class),
+            $request,
+            $flag ? new UserListMetaData(1) : new UserListMetaData(2, 'x'),
+        );
+    }
+
+    public function cursorResponse(Request $request)
+    {
+        return UserData::collect([], CursorPaginatedDataCollection::class)->toResponse($request);
     }
 
     public function listResponse(Request $request)
