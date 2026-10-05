@@ -7,6 +7,7 @@ use Dedoc\Scramble\Infer\Services\FileNameResolver;
 use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\Generator\Parameter;
 use Dedoc\Scramble\Support\Generator\Schema;
+use Dedoc\Scramble\Support\Generator\Types\BooleanType as OpenApiBooleanType;
 use Dedoc\Scramble\Support\Generator\Types\IntegerType as OpenApiIntegerType;
 use Dedoc\Scramble\Support\Generator\Types\StringType as OpenApiStringType;
 use Dedoc\Scramble\Support\RouteInfo;
@@ -57,7 +58,14 @@ class QueryBuilderOperationExtension extends OperationExtension
         $usages = $finder->found ? [$finder] : $this->customQueryUsages($routeInfo);
 
         foreach ($usages as $usage) {
-            $params = $this->buildParameters($usage);
+            $params = array_values(array_filter(
+                $this->buildParameters($usage),
+                fn (Parameter $new) => ! $this->hasArrayVariant($operation, $new),
+            ));
+
+            foreach ($params as $new) {
+                $this->keepBooleanType($operation, $new);
+            }
 
             $operation->parameters = array_values(array_filter(
                 $operation->parameters,
@@ -70,6 +78,28 @@ class QueryBuilderOperationExtension extends OperationExtension
                 $operation->addParameters($params);
             }
         }
+    }
+
+    protected function keepBooleanType(Operation $operation, Parameter $new): void
+    {
+        $existing = collect($operation->parameters)->first(
+            fn (Parameter $parameter) => $parameter->name === $new->name && $parameter->in === $new->in,
+        );
+
+        if ($existing?->schema?->type instanceof OpenApiBooleanType) {
+            $new->setSchema($existing->schema);
+        }
+    }
+
+    protected function hasArrayVariant(Operation $operation, Parameter $parameter): bool
+    {
+        if (! str_starts_with($parameter->name, 'filter[') || str_ends_with($parameter->name, '[]')) {
+            return false;
+        }
+
+        return collect($operation->parameters)->contains(
+            fn (Parameter $existing) => $existing->in === 'query' && $existing->name === $parameter->name.'[]',
+        );
     }
 
     /**

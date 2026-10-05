@@ -5,13 +5,17 @@ namespace PawelJadanowski\ScrambleExtras;
 use Dedoc\Scramble\Infer\Services\FileNameResolver;
 use PhpParser\Node;
 use PhpParser\Node\Expr\Array_;
+use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
+use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\NodeVisitorAbstract;
 use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\AllowedInclude;
+use Spatie\QueryBuilder\AllowedSort;
 use Spatie\QueryBuilder\QueryBuilder;
 
 /**
@@ -44,6 +48,8 @@ class QueryBuilderUsageVisitor extends NodeVisitorAbstract
     /** @var array<int, string> */
     public array $fields = [];
 
+    protected array $variableNodes = [];
+
     public function __construct(protected ?FileNameResolver $nameResolver) {}
 
     public function enterNode(Node $node)
@@ -51,6 +57,14 @@ class QueryBuilderUsageVisitor extends NodeVisitorAbstract
         if ($node instanceof StaticCall && $this->isQueryBuilderFor($node)) {
             $this->found = true;
             $this->modelClass = $this->extractClassConst($node->args[0]->value ?? null);
+        }
+
+        if ($node instanceof Assign && $node->var instanceof Variable && is_string($node->var->name)) {
+            if ($this->isRecordableValue($node->expr)) {
+                $this->variableNodes[$node->var->name] = $node->expr;
+            } else {
+                unset($this->variableNodes[$node->var->name]);
+            }
         }
 
         if (! $node instanceof MethodCall) {
@@ -108,14 +122,14 @@ class QueryBuilderUsageVisitor extends NodeVisitorAbstract
         $result = [];
 
         foreach ($node->args as $arg) {
-            $expr = $arg->value;
+            $expr = $this->resolveVariable($arg->value);
 
             if ($expr instanceof Array_) {
                 foreach ($expr->items as $item) {
                     if (! $item) {
                         continue;
                     }
-                    $entry = $this->buildFilterEntry($item->value, $item);
+                    $entry = $this->buildFilterEntry($this->resolveVariable($item->value), $item);
                     if ($entry !== null) {
                         $result[] = $entry;
                     }
@@ -182,6 +196,51 @@ class QueryBuilderUsageVisitor extends NodeVisitorAbstract
         return $entry;
     }
 
+    protected function resolveVariable(Node $expr): Node
+    {
+        if ($expr instanceof Variable && is_string($expr->name)) {
+            return $this->variableNodes[$expr->name] ?? $expr;
+        }
+
+        return $expr;
+    }
+
+    protected function isRecordableValue(Node $expr): bool
+    {
+        if ($expr instanceof Array_) {
+            foreach ($expr->items as $item) {
+                if (! $item || ! ($item->value instanceof String_ || $this->isFactoryCall($item->value))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return $this->isFactoryCall($expr);
+    }
+
+    protected function isFactoryCall(Node $expr): bool
+    {
+        while ($expr instanceof MethodCall) {
+            $expr = $expr->var;
+        }
+
+        if (! $expr instanceof StaticCall) {
+            return false;
+        }
+
+        $resolved = $this->resolveClassName($expr->class);
+
+        foreach ([AllowedFilter::class, AllowedSort::class, AllowedInclude::class] as $class) {
+            if ($resolved === $class || $resolved === class_basename($class)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected function isAllowedFilter(StaticCall $node): bool
     {
         $resolved = $this->resolveClassName($node->class);
@@ -212,11 +271,11 @@ class QueryBuilderUsageVisitor extends NodeVisitorAbstract
         $result = [];
 
         foreach ($node->args as $arg) {
-            $expr = $arg->value;
+            $expr = $this->resolveVariable($arg->value);
 
             if ($expr instanceof Array_) {
                 foreach ($expr->items as $item) {
-                    $name = $item ? $this->stringOrFactoryName($item->value) : null;
+                    $name = $item ? $this->stringOrFactoryName($this->resolveVariable($item->value)) : null;
                     if ($name !== null) {
                         $result[] = $name;
                     }
@@ -231,6 +290,10 @@ class QueryBuilderUsageVisitor extends NodeVisitorAbstract
 
     protected function stringOrFactoryName(Node $expr): ?string
     {
+        while ($expr instanceof MethodCall) {
+            $expr = $expr->var;
+        }
+
         if ($expr instanceof String_) {
             return $expr->value;
         }
