@@ -16,6 +16,7 @@ class SchemaGenerationTest extends TestCase
     {
         /** @var Router $router */
         $router->post('api/request-action', RequestAction::class);
+        $router->get('api/sorted', [UserController::class, 'sorted']);
         $router->get('api/filtered', [UserController::class, 'filtered']);
         $router->post('api/ruled', [UserController::class, 'ruled']);
         $router->get('api/users/{id}', [UserController::class, 'show']);
@@ -391,6 +392,16 @@ class SchemaGenerationTest extends TestCase
         $sort = $parameters[array_search('sort', $names, true)];
         $this->assertStringContainsString('`age`', $sort['description']);
         $this->assertSame('name', $sort['schema']['default'] ?? null);
+    }
+
+    #[Test]
+    public function query_builder_parameters_replace_duplicates(): void
+    {
+        $parameters = $this->generate()['paths']['/sorted']['get']['parameters'];
+        $sorts = array_values(array_filter($parameters, fn ($p) => $p['name'] === 'sort' && $p['in'] === 'query'));
+
+        $this->assertCount(1, $sorts);
+        $this->assertSame('name', $sorts[0]['schema']['default'] ?? null);
     }
 
     #[Test]

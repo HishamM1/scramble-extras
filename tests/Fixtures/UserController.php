@@ -86,6 +86,13 @@ class UserController
         return [];
     }
 
+    public function sorted(SortedData $data): array
+    {
+        QueryBuilder::for(User::class)->allowedSorts(['name'])->defaultSort('name')->get();
+
+        return [];
+    }
+
     public function showResponse(Request $request, User $user)
     {
         return UserData::fromModel($user)->toResponse($request);

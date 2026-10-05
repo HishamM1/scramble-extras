@@ -59,6 +59,13 @@ class QueryBuilderOperationExtension extends OperationExtension
         foreach ($usages as $usage) {
             $params = $this->buildParameters($usage);
 
+            $operation->parameters = array_values(array_filter(
+                $operation->parameters,
+                fn (Parameter $existing) => ! collect($params)->contains(
+                    fn (Parameter $new) => $new->name === $existing->name && $new->in === $existing->in,
+                ),
+            ));
+
             if ($params !== []) {
                 $operation->addParameters($params);
             }
