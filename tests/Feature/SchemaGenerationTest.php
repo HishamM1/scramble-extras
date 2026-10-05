@@ -4,6 +4,8 @@ namespace PawelJadanowski\ScrambleExtras\Tests\Feature;
 
 use Dedoc\Scramble\Generator;
 use Illuminate\Routing\Router;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\ExcludedAction;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\OtherApiAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RequestAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RulesAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UpdateUserAction;
@@ -17,6 +19,8 @@ class SchemaGenerationTest extends TestCase
     {
         /** @var Router $router */
         $router->post('api/request-action', RequestAction::class);
+        $router->get('api/excluded-action', ExcludedAction::class);
+        $router->get('api/other-api-action', OtherApiAction::class);
         $router->get('api/rules-action', RulesAction::class);
         $router->post('api/rules-action', RulesAction::class);
         $router->get('api/sorted', [UserController::class, 'sorted']);
@@ -134,6 +138,16 @@ class SchemaGenerationTest extends TestCase
         $body = $this->resolveRef($body);
         $this->assertSame('number', $body['properties']['amount']['type']);
         $this->assertContains('amount', $body['required']);
+    }
+
+    #[Test]
+    public function as_controller_exclusion_and_api_attributes_are_honoured(): void
+    {
+        $paths = $this->generate()['paths'];
+
+        $this->assertArrayNotHasKey('/excluded-action', $paths);
+        $this->assertArrayNotHasKey('/other-api-action', $paths);
+        $this->assertArrayHasKey('/rules-action', $paths);
     }
 
     #[Test]

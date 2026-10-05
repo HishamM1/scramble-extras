@@ -2,10 +2,13 @@
 
 namespace PawelJadanowski\ScrambleExtras;
 
+use Dedoc\Scramble\Attributes\Api;
+use Dedoc\Scramble\Attributes\ExcludeRouteFromDocs;
 use Dedoc\Scramble\Contracts\RouteProvider;
 use Dedoc\Scramble\GeneratorConfig;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Collection;
+use ReflectionMethod;
 
 class LaravelActionsRouteProvider implements RouteProvider
 {
@@ -24,6 +27,7 @@ class LaravelActionsRouteProvider implements RouteProvider
         return $this->routeProvider
             ->get($config)
             ->map(fn (Route $route) => $this->pointAtAsController($route))
+            ->filter(fn (Route $route) => $this->isDocumented($route, $config))
             ->values();
     }
 
@@ -45,6 +49,25 @@ class LaravelActionsRouteProvider implements RouteProvider
         $clone->uses($class.'@asController');
 
         return $clone;
+    }
+
+    private function isDocumented(Route $route, GeneratorConfig $config): bool
+    {
+        $uses = $route->getAction('uses');
+
+        if (! is_string($uses) || ! str_ends_with($uses, '@asController') || ! method_exists(...explode('@', $uses))) {
+            return true;
+        }
+
+        $method = new ReflectionMethod(...explode('@', $uses));
+
+        if ($method->getAttributes(ExcludeRouteFromDocs::class) !== []) {
+            return false;
+        }
+
+        $api = $method->getAttributes(Api::class);
+
+        return $api === [] || in_array($config->name, $api[0]->newInstance()->only, true);
     }
 
     private function isControllerAction(string $class): bool
