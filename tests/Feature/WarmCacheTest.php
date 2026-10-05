@@ -30,8 +30,7 @@ class WarmCacheTest extends TestCase
             $openApi = is_array($result) ? $result : $result->toArray();
             $schemas = $openApi['components']['schemas'];
 
-            fwrite(STDERR, $run.json_encode(array_keys($schemas)).json_encode($schemas)."
-"); $this->assertGreaterThanOrEqual(3, count($schemas), $run);
+            $this->assertGreaterThanOrEqual(3, count($schemas), $run);
             $this->assertSame([], $this->unresolved($openApi, $schemas), $run);
             $this->assertArrayNotHasKey('description', $schemas['CollidingData'] ?? [], $run);
         }
