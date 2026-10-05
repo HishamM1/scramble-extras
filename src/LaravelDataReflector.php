@@ -452,7 +452,7 @@ class LaravelDataReflector
         }
 
         $name = $property->getName();
-        if (preg_match('/@param\s+(\S+)\s+\$'.preg_quote($name, '/').'\b/', $constructorDoc, $m)) {
+        if (preg_match('/@param[ \t]+([^$\n]+?)[ \t]+\$'.preg_quote($name, '/').'\b/', $constructorDoc, $m)) {
             return trim($m[1]);
         }
 

@@ -23,6 +23,7 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/other-api-action', OtherApiAction::class);
         $router->get('api/rules-action', RulesAction::class);
         $router->post('api/rules-action', RulesAction::class);
+        $router->post('api/upload', [UserController::class, 'upload']);
         $router->get('api/sorted', [UserController::class, 'sorted']);
         $router->get('api/filtered', [UserController::class, 'filtered']);
         $router->post('api/ruled', [UserController::class, 'ruled']);
@@ -188,6 +189,44 @@ class SchemaGenerationTest extends TestCase
 
         $this->assertSame('integer', $schema['properties']['depth']['type']);
         $this->assertContains('depth', $schema['required']);
+    }
+
+    #[Test]
+    public function uploaded_file_properties_become_binary_strings_in_a_multipart_body(): void
+    {
+        $content = $this->generate()['paths']['/upload']['post']['requestBody']['content'];
+
+        $this->assertSame(['multipart/form-data'], array_keys($content));
+        $properties = $this->resolveRef($content['multipart/form-data']['schema'])['properties'];
+
+        $this->assertSame('string', $properties['proof']['type']);
+        $this->assertSame('binary', $properties['proof']['format']);
+        $this->assertEqualsCanonicalizing(['string', 'null'], (array) $properties['receipt']['type']);
+        $this->assertSame('binary', $properties['receipt']['format']);
+        $this->assertSame('array', $properties['attachments']['type']);
+        $this->assertSame('string', $properties['attachments']['items']['type']);
+        $this->assertSame('binary', $properties['attachments']['items']['format']);
+    }
+
+    #[Test]
+    public function file_size_rules_become_descriptions_not_length_limits(): void
+    {
+        $content = $this->generate()['paths']['/upload']['post']['requestBody']['content'];
+        $properties = $this->resolveRef($content['multipart/form-data']['schema'])['properties'];
+
+        $this->assertArrayNotHasKey('maxLength', $properties['proof']);
+        $this->assertArrayNotHasKey('minLength', $properties['proof']);
+        $this->assertSame('Minimum file size: 5 kilobytes. Maximum file size: 10240 kilobytes.', $properties['proof']['description']);
+        $this->assertArrayNotHasKey('maxLength', $properties['attachments']['items']);
+        $this->assertSame('Maximum file size: 2048 kilobytes.', $properties['attachments']['items']['description']);
+    }
+
+    #[Test]
+    public function body_without_uploaded_files_stays_application_json(): void
+    {
+        $content = $this->generate()['paths']['/users']['post']['requestBody']['content'];
+
+        $this->assertSame(['application/json'], array_keys($content));
     }
 
     #[Test]

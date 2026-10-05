@@ -36,6 +36,11 @@ class UserController
         return $data;
     }
 
+    public function upload(UploadData $data): array
+    {
+        return [];
+    }
+
     public function update(int $id, UserData $data): UserData
     {
         return $data;

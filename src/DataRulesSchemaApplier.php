@@ -279,7 +279,15 @@ class DataRulesSchemaApplier
             $type->enum($this->castValues($type, $rules['in']));
         }
 
-        if ($type instanceof OpenApiStringType || $type instanceof OpenApiNumberType) {
+        if ($type instanceof OpenApiStringType && ($type->format === 'binary' || $type->contentMediaType === 'application/octet-stream')) {
+            if ($type->description === '') {
+                $sizes = array_filter([
+                    $rules['min'] !== null ? "Minimum file size: {$rules['min']} kilobytes." : null,
+                    $rules['max'] !== null ? "Maximum file size: {$rules['max']} kilobytes." : null,
+                ]);
+                $type->setDescription(implode(' ', $sizes));
+            }
+        } elseif ($type instanceof OpenApiStringType || $type instanceof OpenApiNumberType) {
             if ($rules['min'] !== null && $type->min === null) {
                 $type->setMin($rules['min']);
             }
