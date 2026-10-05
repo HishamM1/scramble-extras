@@ -155,14 +155,13 @@ class SchemaGenerationTest extends TestCase
     }
 
     #[Test]
-    public function multi_method_routes_get_method_suffixed_operation_ids(): void
+    public function multi_method_routes_suffix_only_the_secondary_method_operation_ids(): void
     {
         $path = $this->generate()['paths']['/users/{id}'];
         $put = $path['put']['operationId'];
         $patch = $path['patch']['operationId'];
 
-        $this->assertNotSame($put, $patch);
-        $this->assertStringEndsWith('.put', $put);
+        $this->assertStringEndsNotWith('.put', $put);
         $this->assertStringEndsWith('.patch', $patch);
         $this->assertDoesNotMatchRegularExpression('/_\d+$/', $put.$patch);
     }

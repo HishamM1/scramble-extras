@@ -11,10 +11,10 @@ class MethodAwareOperationIdExtension extends OperationExtension
 {
     public function handle(Operation $operation, RouteInfo $routeInfo): void
     {
-        $methods = array_diff(array_map('strtolower', $routeInfo->route->methods()), ['head']);
+        $methods = array_values(array_diff(array_map('strtolower', $routeInfo->route->methods()), ['head']));
         $options = $operation->getAttribute('operationId');
 
-        if (count($methods) < 2 || ! $options instanceof UniqueNameOptions) {
+        if (count($methods) < 2 || $operation->method === $methods[0] || ! $options instanceof UniqueNameOptions) {
             return;
         }
 
