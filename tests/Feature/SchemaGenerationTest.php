@@ -118,6 +118,19 @@ class SchemaGenerationTest extends TestCase
     }
 
     #[Test]
+    public function multi_method_routes_get_method_suffixed_operation_ids(): void
+    {
+        $path = $this->generate()['paths']['/users/{id}'];
+        $put = $path['put']['operationId'];
+        $patch = $path['patch']['operationId'];
+
+        $this->assertNotSame($put, $patch);
+        $this->assertStringEndsWith('.put', $put);
+        $this->assertStringEndsWith('.patch', $patch);
+        $this->assertDoesNotMatchRegularExpression('/_\d+$/', $put.$patch);
+    }
+
+    #[Test]
     public function nested_rules_keep_reference_properties_intact(): void
     {
         $schema = $this->resolveRef($this->generate()['paths']['/ruled']['post']['requestBody']['content']['application/json']['schema']);
