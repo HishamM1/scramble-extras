@@ -5,6 +5,7 @@ namespace PawelJadanowski\ScrambleExtras\Tests\Feature;
 use Dedoc\Scramble\Generator;
 use Illuminate\Routing\Router;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RequestAction;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RulesAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UpdateUserAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UserController;
 use PHPUnit\Framework\Attributes\Test;
@@ -16,6 +17,8 @@ class SchemaGenerationTest extends TestCase
     {
         /** @var Router $router */
         $router->post('api/request-action', RequestAction::class);
+        $router->get('api/rules-action', RulesAction::class);
+        $router->post('api/rules-action', RulesAction::class);
         $router->get('api/sorted', [UserController::class, 'sorted']);
         $router->get('api/filtered', [UserController::class, 'filtered']);
         $router->post('api/ruled', [UserController::class, 'ruled']);
@@ -115,6 +118,22 @@ class SchemaGenerationTest extends TestCase
         foreach (['name', 'age', 'kind', 'status', 'family'] as $field) {
             $this->assertContains($field, $schema['required']);
         }
+    }
+
+    #[Test]
+    public function action_rules_become_query_parameters_on_get_and_body_fields_otherwise(): void
+    {
+        $paths = $this->generate()['paths']['/rules-action'];
+
+        $amount = collect($paths['get']['parameters'])->firstWhere('name', 'amount');
+        $this->assertSame('query', $amount['in']);
+        $this->assertTrue($amount['required']);
+        $this->assertArrayNotHasKey('requestBody', $paths['get']);
+
+        $body = $paths['post']['requestBody']['content']['application/json']['schema'];
+        $body = $this->resolveRef($body);
+        $this->assertSame('number', $body['properties']['amount']['type']);
+        $this->assertContains('amount', $body['required']);
     }
 
     #[Test]

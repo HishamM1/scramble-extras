@@ -73,6 +73,10 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
 
         Scramble::configure()->withParametersExtractors(function (ParametersExtractors $extractors) {
             $extractors->append(LaravelDataParametersExtractor::class);
+
+            if (class_exists(\Lorisleiva\Actions\ActionRequest::class)) {
+                $extractors->append(LaravelActionRulesParametersExtractor::class);
+            }
         });
 
         Scramble::configure()->withOperationTransformers(function (OperationTransformers $transformers) {
