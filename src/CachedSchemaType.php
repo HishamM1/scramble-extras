@@ -2,20 +2,16 @@
 
 namespace PawelJadanowski\ScrambleExtras;
 
+use Dedoc\Scramble\Support\Generator\Types\MixedType;
 use Dedoc\Scramble\Support\Generator\Types\ObjectType as OpenApiObjectType;
 use Dedoc\Scramble\Support\Generator\Types\Type;
 
-/**
- * Passthrough type that returns a pre-computed array from `toArray()`. Used by
- * SchemaCache to skip rebuilding Data class schemas when the source file is
- * unchanged. Mutating setters propagate into the cached array so post-cache
- * decorators (e.g. GoToDefinitionSchemaExtension appending GitHub links) keep
- * working.
- */
 class CachedSchemaType extends OpenApiObjectType
 {
+    use CachedLeafType;
+
     /** @param array<string, mixed> $cachedArray */
-    public function __construct(private array $cachedArray)
+    public function __construct(array $cachedArray)
     {
         parent::__construct();
 
@@ -23,46 +19,47 @@ class CachedSchemaType extends OpenApiObjectType
             $this->required = $cachedArray['required'];
         }
 
-        if (! empty($cachedArray['description']) && is_string($cachedArray['description'])) {
-            $this->description = $cachedArray['description'];
+        if (isset($cachedArray['properties']) && is_array($cachedArray['properties'])) {
+            foreach ($cachedArray['properties'] as $name => $property) {
+                $this->properties[$name] = self::typeFromArray($property);
+            }
         }
+
+        $this->hydrate($cachedArray);
     }
 
-    public function setDescription(string $description): Type
+    public static function typeFromArray(array|\stdClass $array): Type
     {
-        if ($description === '') {
-            unset($this->cachedArray['description']);
-        } else {
-            $this->cachedArray['description'] = $description;
+        if ($array instanceof \stdClass) {
+            return new MixedType;
         }
-        $this->description = $description;
 
-        return $this;
-    }
-
-    public function format(string $format): Type
-    {
-        $this->cachedArray['format'] = $format;
-        $this->format = $format;
-
-        return $this;
-    }
-
-    public function nullable(bool $nullable): Type
-    {
-        if ($nullable) {
-            $existing = $this->cachedArray['type'] ?? 'object';
-            $this->cachedArray['type'] = is_array($existing)
-                ? array_values(array_unique([...$existing, 'null']))
-                : [$existing, 'null'];
-        }
-        $this->nullable = $nullable;
-
-        return $this;
+        return match (CachedScalarType::kind($array)) {
+            'object' => new self($array),
+            'array' => new CachedArrayType($array),
+            default => new CachedScalarType($array),
+        };
     }
 
     public function toArray()
     {
-        return $this->cachedArray;
+        $result = $this->overlayMutations();
+
+        if ($this->properties !== []) {
+            $result['properties'] = array_map(
+                fn (?Type $property) => $property ? $property->toArray() : ['type' => 'string'],
+                $this->properties,
+            );
+        } elseif (is_array($result['properties'] ?? null)) {
+            unset($result['properties']);
+        }
+
+        if ($this->required !== []) {
+            $result['required'] = array_values($this->required);
+        } elseif (is_array($result['required'] ?? null)) {
+            unset($result['required']);
+        }
+
+        return $result;
     }
 }
