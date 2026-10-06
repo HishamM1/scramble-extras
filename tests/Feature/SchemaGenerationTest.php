@@ -6,8 +6,12 @@ use Dedoc\Scramble\Generator;
 use Illuminate\Routing\Router;
 use PawelJadanowski\ScrambleExtras\SchemaCache;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\ExcludedAction;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\ExplicitMethodAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\FilterArrayAction;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\FormRequestRulesAction;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\NoRequestRulesAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\OtherApiAction;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\PlainRulesController;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RequestAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RulesAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\TypedFilterAction;
@@ -25,6 +29,10 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/excluded-action', ExcludedAction::class);
         $router->get('api/other-api-action', OtherApiAction::class);
         $router->get('api/rules-action', RulesAction::class);
+        $router->get('api/no-request-rules-action', NoRequestRulesAction::class);
+        $router->get('api/plain-rules', [PlainRulesController::class, 'index']);
+        $router->get('api/explicit-method', [ExplicitMethodAction::class, 'custom']);
+        $router->get('api/form-request-rules-action', FormRequestRulesAction::class);
         $router->post('api/rules-action', RulesAction::class);
         $router->post('api/upload', [UserController::class, 'upload']);
         $router->post('api/empty-in', [UserController::class, 'emptyIn']);
@@ -196,6 +204,43 @@ class SchemaGenerationTest extends TestCase
         $body = $this->resolveRef($body);
         $this->assertSame('number', $body['properties']['amount']['type']);
         $this->assertContains('amount', $body['required']);
+    }
+
+    #[Test]
+    public function action_rules_become_parameters_without_an_action_request_argument(): void
+    {
+        $parameters = collect($this->generate()['paths']['/no-request-rules-action']['get']['parameters'])->keyBy('name');
+
+        $this->assertSame('query', $parameters['amount']['in']);
+        $this->assertTrue($parameters['amount']['required']);
+        $this->assertContains('number', (array) $parameters['amount']['schema']['type']);
+        $this->assertCount(1, collect($parameters)->where('name', 'note'));
+    }
+
+    #[Test]
+    public function rules_on_a_plain_controller_are_not_extracted(): void
+    {
+        $parameters = $this->generate()['paths']['/plain-rules']['get']['parameters'] ?? [];
+
+        $this->assertNotContains('plain', array_column($parameters, 'name'));
+    }
+
+    #[Test]
+    public function rules_are_not_extracted_for_an_explicit_action_method(): void
+    {
+        $parameters = $this->generate()['paths']['/explicit-method']['get']['parameters'] ?? [];
+
+        $this->assertNotContains('explicit', array_column($parameters, 'name'));
+    }
+
+    #[Test]
+    public function action_rules_are_not_duplicated_when_as_controller_takes_a_form_request(): void
+    {
+        $parameters = $this->generate()['paths']['/form-request-rules-action']['get']['parameters'] ?? [];
+        $names = array_column($parameters, 'name');
+
+        $this->assertSame(1, count(array_keys($names, 'custom', true)));
+        $this->assertNotContains('action_rule', $names);
     }
 
     #[Test]
@@ -834,6 +879,9 @@ class SchemaGenerationTest extends TestCase
         $sort = $parameters[array_search('sort', $names, true)];
         $this->assertStringContainsString('`age`', $sort['description']);
         $this->assertSame('name', $sort['schema']['default'] ?? null);
+
+        $status = $parameters[array_search('filter[status]', $names, true)];
+        $this->assertSame(['active', 'inactive', 'pending'], $status['schema']['enum'] ?? null);
     }
 
     #[Test]

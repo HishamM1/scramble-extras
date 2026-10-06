@@ -33,6 +33,32 @@ class QueryBuilderUsageVisitorTest extends TestCase
     }
 
     #[Test]
+    public function resolves_model_from_parent_constructor_forms(): void
+    {
+        $forms = [
+            'Invoice::query()',
+            'Invoice::with("tenant", "plan")',
+            'Invoice::withTrashed()->where("a", 1)',
+            'Invoice::query()->where("a", 1)->with("b")',
+            'new Invoice',
+        ];
+
+        foreach ($forms as $form) {
+            $visitor = $this->visit("parent::__construct($form, \$request);");
+
+            $this->assertSame('Invoice', $visitor->modelClass, $form);
+        }
+    }
+
+    #[Test]
+    public function leaves_model_null_when_parent_constructor_subject_is_opaque(): void
+    {
+        $visitor = $this->visit('parent::__construct($family->students()->with("x"), $request);');
+
+        $this->assertNull($visitor->modelClass);
+    }
+
+    #[Test]
     public function ignores_unrelated_code(): void
     {
         $visitor = $this->visit('$x = SomeOther::for(User::class)->allowedFilters(["name"]);');

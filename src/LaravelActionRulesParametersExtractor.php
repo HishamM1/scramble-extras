@@ -7,8 +7,13 @@ use Dedoc\Scramble\Support\Generator\TypeTransformer;
 use Dedoc\Scramble\Support\OperationExtensions\ParameterExtractor\FormRequestParametersExtractor;
 use Dedoc\Scramble\Support\OperationExtensions\ParameterExtractor\ParameterExtractor;
 use Dedoc\Scramble\Support\RouteInfo;
+use Illuminate\Foundation\Http\FormRequest;
 use Lorisleiva\Actions\ActionRequest;
+use Lorisleiva\Actions\Concerns\AsController;
+use Lorisleiva\Actions\Concerns\WithAttributes;
 use PhpParser\PrettyPrinter;
+use ReflectionClass;
+use ReflectionMethod;
 use ReflectionNamedType;
 
 class LaravelActionRulesParametersExtractor implements ParameterExtractor
@@ -23,7 +28,20 @@ class LaravelActionRulesParametersExtractor implements ParameterExtractor
     {
         $method = $routeInfo->reflectionMethod();
 
-        if (! $method || ! $this->hasActionRequestParameter($method) || ! method_exists($method->getDeclaringClass()->getName(), 'rules')) {
+        if (! $method) {
+            return $parameterExtractionResults;
+        }
+
+        $class = $method->getDeclaringClass()->getName();
+        $uses = class_uses_recursive($class);
+
+        if (
+            ! in_array(AsController::class, $uses, true)
+            || in_array(WithAttributes::class, $uses, true)
+            || ! in_array($method->getName(), ['asController', 'handle', '__invoke'], true)
+            || ! $this->hasPublicRules($method->getDeclaringClass())
+            || $this->hasCustomFormRequestParameter($method)
+        ) {
             return $parameterExtractionResults;
         }
 
@@ -31,17 +49,26 @@ class LaravelActionRulesParametersExtractor implements ParameterExtractor
             $this->printer,
             $this->openApiTransformer,
             $this->diagnostics,
-        ))->extractFormRequestParameters($method->getDeclaringClass()->getName(), $routeInfo);
+        ))->extractFormRequestParameters($class, $routeInfo);
 
         return $parameterExtractionResults;
     }
 
-    protected function hasActionRequestParameter(\ReflectionMethod $method): bool
+    protected function hasPublicRules(ReflectionClass $class): bool
+    {
+        return $class->hasMethod('rules') && $class->getMethod('rules')->isPublic();
+    }
+
+    protected function hasCustomFormRequestParameter(ReflectionMethod $method): bool
     {
         foreach ($method->getParameters() as $parameter) {
             $type = $parameter->getType();
 
-            if ($type instanceof ReflectionNamedType && is_a($type->getName(), ActionRequest::class, true)) {
+            if (
+                $type instanceof ReflectionNamedType
+                && is_a($type->getName(), FormRequest::class, true)
+                && ! is_a($type->getName(), ActionRequest::class, true)
+            ) {
                 return true;
             }
         }

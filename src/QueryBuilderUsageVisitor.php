@@ -8,6 +8,7 @@ use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\Assign;
 use PhpParser\Node\Expr\ClassConstFetch;
 use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Identifier;
@@ -57,6 +58,10 @@ class QueryBuilderUsageVisitor extends NodeVisitorAbstract
         if ($node instanceof StaticCall && $this->isQueryBuilderFor($node)) {
             $this->found = true;
             $this->modelClass = $this->extractClassConst($node->args[0]->value ?? null);
+        }
+
+        if ($node instanceof StaticCall && $this->isParentConstructor($node)) {
+            $this->modelClass = $this->extractModelFromSubject($node->args[0]->value ?? null);
         }
 
         if ($node instanceof Assign && $node->var instanceof Variable && is_string($node->var->name)) {
@@ -112,6 +117,40 @@ class QueryBuilderUsageVisitor extends NodeVisitorAbstract
         return $resolved === QueryBuilder::class
             || (class_exists($resolved) && is_a($resolved, QueryBuilder::class, true))
             || $resolved === 'QueryBuilder';
+    }
+
+    protected function isParentConstructor(StaticCall $node): bool
+    {
+        return $node->class instanceof Node\Name
+            && strtolower($node->class->toString()) === 'parent'
+            && $node->name instanceof Identifier
+            && $node->name->toLowerString() === '__construct';
+    }
+
+    protected function extractModelFromSubject(?Node $node): ?string
+    {
+        while ($node instanceof MethodCall) {
+            $node = $node->var;
+        }
+
+        if ($node instanceof New_) {
+            return $this->extractConcreteClass($node->class);
+        }
+
+        if ($node instanceof StaticCall) {
+            return $this->extractConcreteClass($node->class);
+        }
+
+        return null;
+    }
+
+    protected function extractConcreteClass(Node $class): ?string
+    {
+        if (! $class instanceof Node\Name || in_array(strtolower($class->toString()), ['self', 'static', 'parent'], true)) {
+            return null;
+        }
+
+        return $this->resolveClassName($class) ?: null;
     }
 
     /**
