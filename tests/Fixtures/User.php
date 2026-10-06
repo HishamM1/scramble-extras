@@ -10,5 +10,6 @@ class User extends Model
 
     protected $casts = [
         'status' => StatusEnum::class,
+        'priority' => PriorityEnum::class,
     ];
 }

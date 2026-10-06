@@ -10,6 +10,7 @@ use PawelJadanowski\ScrambleExtras\Tests\Fixtures\FilterArrayAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\OtherApiAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RequestAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RulesAction;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\TypedFilterAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UpdateUserAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UserController;
 use PHPUnit\Framework\Attributes\Test;
@@ -36,6 +37,9 @@ class SchemaGenerationTest extends TestCase
         $router->post('api/nested-json', [UserController::class, 'nestedJson']);
         $router->post('api/map-rules', [UserController::class, 'mapRules']);
         $router->get('api/filter-array', FilterArrayAction::class);
+        $router->get('api/typed-filters', TypedFilterAction::class);
+        $router->post('api/date-rule-body', [UserController::class, 'dateRuleBody']);
+        $router->get('api/date-rule-query', [UserController::class, 'dateRuleQuery']);
         $router->get('api/json-paginated', [UserController::class, 'jsonPaginated']);
         $router->get('api/sorted', [UserController::class, 'sorted']);
         $router->get('api/filtered', [UserController::class, 'filtered']);
@@ -851,5 +855,51 @@ class SchemaGenerationTest extends TestCase
             $names = array_column($operation['parameters'] ?? [], 'name');
             $this->assertSame([], array_values(array_filter($names, fn ($n) => str_starts_with($n, 'filter[') || $n === 'sort')));
         }
+    }
+
+    #[Test]
+    public function query_builder_parameters_keep_types_from_action_rules(): void
+    {
+        $parameters = collect($this->generate()['paths']['/typed-filters']['get']['parameters'])->keyBy('name');
+
+        $this->assertContains('integer', (array) $parameters['filter[student_id]']['schema']['type']);
+        $this->assertSame(['a', 'b'], array_values(array_filter($parameters['filter[kind]']['schema']['enum'])));
+        $this->assertSame('date', $parameters['filter[day]']['schema']['format']);
+        $this->assertSame(['name', '-name'], array_values(array_filter($parameters['sort']['schema']['enum'])));
+        $this->assertStringContainsString('Allowed', $parameters['sort']['description']);
+        $this->assertSame('-name', $parameters['sort']['schema']['default']);
+        $this->assertSame(1, $parameters['page[number]']['schema']['default']);
+        $this->assertContains('integer', (array) $parameters['page[number]']['schema']['type']);
+        $this->assertSame([1, 2], array_values(array_filter($parameters['filter[priority]']['schema']['enum'])));
+    }
+
+    #[Test]
+    public function plain_string_rule_on_enum_cast_column_still_gets_the_model_enum(): void
+    {
+        $parameters = collect($this->generate()['paths']['/typed-filters']['get']['parameters'])->keyBy('name');
+
+        $this->assertSame(['active', 'inactive', 'pending'], $parameters['filter[status]']['schema']['enum']);
+        $this->assertArrayNotHasKey('enum', $parameters['filter[title]']['schema']);
+    }
+
+    #[Test]
+    public function date_rule_on_data_query_parameter_becomes_date_format(): void
+    {
+        $parameters = collect($this->generate()['paths']['/date-rule-query']['get']['parameters'])->keyBy('name');
+
+        $this->assertSame('date', $parameters['since']['schema']['format']);
+    }
+
+    #[Test]
+    public function date_rule_keeps_date_time_on_carbon_properties_in_body_and_query(): void
+    {
+        $paths = $this->generate()['paths'];
+
+        $query = collect($paths['/date-rule-query']['get']['parameters'])->keyBy('name');
+        $this->assertSame('date-time', $query['startsAt']['schema']['format']);
+
+        $body = $this->resolveRef($paths['/date-rule-body']['post']['requestBody']['content']['application/json']['schema']);
+        $this->assertSame('date-time', $body['properties']['startsAt']['format']);
+        $this->assertSame('date', $body['properties']['since']['format']);
     }
 }

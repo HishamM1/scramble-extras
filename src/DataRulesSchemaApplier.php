@@ -107,6 +107,7 @@ class DataRulesSchemaApplier
                 'nullable' => false,
                 'type' => null,
                 'format' => null,
+                'weakFormat' => null,
                 'min' => null,
                 'max' => null,
                 'in' => null,
@@ -172,6 +173,10 @@ class DataRulesSchemaApplier
             case 'uuid':
                 $parsed['type'] ??= 'string';
                 $parsed['format'] = 'uuid';
+                break;
+            case 'date':
+                $parsed['type'] ??= 'string';
+                $parsed['weakFormat'] = 'date';
                 break;
             case 'date_format':
                 if ($arguments === 'Y-m-d') {
@@ -354,6 +359,10 @@ class DataRulesSchemaApplier
 
         if ($rules['format'] !== null && $type instanceof OpenApiStringType && ($type->format === '' || ($rules['format'] === 'date' && $type->format === 'date-time'))) {
             $type->format($rules['format']);
+        }
+
+        if ($rules['weakFormat'] !== null && $type instanceof OpenApiStringType && $type->format === '') {
+            $type->format($rules['weakFormat']);
         }
 
         if ($rules['in'] !== null && $type->enum === [] && ! $type instanceof OpenApiObjectType && ! $type instanceof OpenApiArrayType) {

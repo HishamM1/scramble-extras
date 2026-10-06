@@ -4,12 +4,13 @@ namespace PawelJadanowski\ScrambleExtras;
 
 use Dedoc\Scramble\Extensions\OperationExtension;
 use Dedoc\Scramble\Infer\Services\FileNameResolver;
+use Dedoc\Scramble\Support\Generator\MissingValue;
 use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\Generator\Parameter;
 use Dedoc\Scramble\Support\Generator\Schema;
-use Dedoc\Scramble\Support\Generator\Types\BooleanType as OpenApiBooleanType;
 use Dedoc\Scramble\Support\Generator\Types\IntegerType as OpenApiIntegerType;
 use Dedoc\Scramble\Support\Generator\Types\StringType as OpenApiStringType;
+use Dedoc\Scramble\Support\Generator\Types\Type;
 use Dedoc\Scramble\Support\RouteInfo;
 use Illuminate\Database\Eloquent\Model;
 use PhpParser\Node;
@@ -64,7 +65,7 @@ class QueryBuilderOperationExtension extends OperationExtension
             ));
 
             foreach ($params as $new) {
-                $this->keepBooleanType($operation, $new);
+                $this->keepTypedSchema($operation, $new);
             }
 
             $operation->parameters = array_values(array_filter(
@@ -80,15 +81,48 @@ class QueryBuilderOperationExtension extends OperationExtension
         }
     }
 
-    protected function keepBooleanType(Operation $operation, Parameter $new): void
+    protected function keepTypedSchema(Operation $operation, Parameter $new): void
     {
         $existing = collect($operation->parameters)->first(
             fn (Parameter $parameter) => $parameter->name === $new->name && $parameter->in === $new->in,
         );
 
-        if ($existing?->schema?->type instanceof OpenApiBooleanType) {
+        if ($existing?->schema?->type !== null && $this->isMoreSpecificThanPlainString($existing->schema->type)) {
+            $kept = $existing->schema->type;
+            $incoming = $new->schema?->type;
+
+            if ($incoming !== null) {
+                if ($kept->default instanceof MissingValue && ! $incoming->default instanceof MissingValue) {
+                    $kept->default($incoming->default);
+                }
+
+                if ($kept->enum === [] && $incoming->enum !== [] && $this->enumMatchesType($kept, $incoming->enum)) {
+                    $kept->enum($incoming->enum);
+                }
+            }
+
             $new->setSchema($existing->schema);
         }
+    }
+
+    protected function enumMatchesType(Type $type, array $values): bool
+    {
+        $check = match (true) {
+            $type instanceof OpenApiIntegerType => 'is_int',
+            $type instanceof OpenApiStringType => 'is_string',
+            default => null,
+        };
+
+        return $check !== null && array_filter($values, fn ($value) => ! $check($value)) === [];
+    }
+
+    protected function isMoreSpecificThanPlainString(Type $type): bool
+    {
+        if (! $type instanceof OpenApiStringType) {
+            return true;
+        }
+
+        return $type->enum !== [] || ($type->format ?? '') !== '';
     }
 
     protected function hasArrayVariant(Operation $operation, Parameter $parameter): bool

@@ -90,6 +90,16 @@ class UserController
         return [];
     }
 
+    public function dateRuleQuery(DateRuleQueryData $data): array
+    {
+        return [];
+    }
+
+    public function dateRuleBody(DateRuleQueryData $data): array
+    {
+        return [];
+    }
+
     public function dates(DatesData $data): DatesData
     {
         return $data;
