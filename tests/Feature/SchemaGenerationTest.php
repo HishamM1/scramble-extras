@@ -5,6 +5,7 @@ namespace PawelJadanowski\ScrambleExtras\Tests\Feature;
 use Dedoc\Scramble\Generator;
 use Illuminate\Routing\Router;
 use PawelJadanowski\ScrambleExtras\SchemaCache;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\AuthorizeAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\ExcludedAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\ExplicitMethodAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\FilterArrayAction;
@@ -33,6 +34,7 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/no-request-rules-action', NoRequestRulesAction::class);
         $router->get('api/plain-rules', [PlainRulesController::class, 'index']);
         $router->get('api/explicit-method', [ExplicitMethodAction::class, 'custom']);
+        $router->delete('api/authorize-action/{id}', AuthorizeAction::class);
         $router->get('api/form-request-rules-action', FormRequestRulesAction::class);
         $router->post('api/rules-action', RulesAction::class);
         $router->post('api/upload', [UserController::class, 'upload']);
@@ -763,6 +765,17 @@ class SchemaGenerationTest extends TestCase
 
         $this->assertArrayNotHasKey('422', $paths['/request-action']['post']['responses'] ?? []);
         $this->assertArrayHasKey('422', $paths['/rules-action']['post']['responses'] ?? []);
+        $this->assertArrayHasKey('422', $paths['/no-request-rules-action']['get']['responses'] ?? []);
+        $this->assertArrayNotHasKey('422', $paths['/explicit-method']['get']['responses'] ?? []);
+    }
+
+    #[Test]
+    public function action_authorize_method_documents_a_403(): void
+    {
+        $paths = $this->generate()['paths'];
+
+        $this->assertArrayHasKey('403', $paths['/authorize-action/{id}']['delete']['responses'] ?? []);
+        $this->assertArrayNotHasKey('403', $paths['/rules-action']['post']['responses'] ?? []);
     }
 
     #[Test]
