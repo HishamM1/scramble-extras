@@ -47,6 +47,7 @@ Everything below is on top of upstream `pjadanowski/scramble-extras`.
 - **Operation ids on multi-method routes** — the `PATCH` operation of a `PUT|PATCH` route gets a `.patch` suffix instead of a numeric de-duplication suffix; the primary method keeps its plain id.
 - **Date formats** — date-only rules, attributes and `Y-m-d` date transformers emit `format: date` instead of `date-time`.
 - **Rule mapping** — `$ref`s are left intact when constraints are applied, `in:` values are cast to the property's type, and fields that are `required` but not `nullable` are no longer marked nullable.
+- **422 on `ActionRequest` actions** — laravel-actions' `ActionRequest` always has a `rules()` method, so every action taking it got a `422`. It is now documented only when the action defines `rules`, `withValidator`, `afterValidator` or `getValidator`.
 - **Request body components** — the request body is a single `$ref` to a `{ShortName}Input` component (e.g. `UserDataInput`), kept separate from the `UserData` output component.
 - **Schema cache** — cached schemas keep their types and later mutations from other extensions; references are stored by fully-qualified class name so same-named `Data` classes in different namespaces don't collide; the cache invalidates when this package's source changes.
 

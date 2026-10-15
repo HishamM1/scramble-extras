@@ -757,6 +757,15 @@ class SchemaGenerationTest extends TestCase
     }
 
     #[Test]
+    public function action_request_documents_a_422_only_when_the_action_validates(): void
+    {
+        $paths = $this->generate()['paths'];
+
+        $this->assertArrayNotHasKey('422', $paths['/request-action']['post']['responses'] ?? []);
+        $this->assertArrayHasKey('422', $paths['/rules-action']['post']['responses'] ?? []);
+    }
+
+    #[Test]
     public function to_response_on_custom_static_constructor_resolves_to_data_schema(): void
     {
         $schema = $this->generate()['paths']['/user-responses/{user}']['get']['responses'][200]['content']['application/json']['schema'] ?? [];

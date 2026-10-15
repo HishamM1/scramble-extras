@@ -84,6 +84,10 @@ class ScrambleExtrasServiceProvider extends ServiceProvider
 
         Scramble::configure()->withOperationTransformers(function (OperationTransformers $transformers) {
             $transformers->prepend(LaravelDataValidationExceptionExtension::class);
+
+            if (class_exists(\Lorisleiva\Actions\ActionRequest::class)) {
+                $transformers->prepend(LaravelActionValidationExceptionExtension::class);
+            }
             $transformers->append(MethodAwareOperationIdExtension::class);
             $transformers->append(PaginationParametersOperationExtension::class);
             $transformers->append(ArrayEnumOperationExtension::class);
