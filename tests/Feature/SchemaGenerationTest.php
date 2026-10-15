@@ -9,6 +9,7 @@ use PawelJadanowski\ScrambleExtras\Tests\Fixtures\ExcludedAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\ExplicitMethodAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\FilterArrayAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\FormRequestRulesAction;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\HandleQueryAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\NoRequestRulesAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\OtherApiAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\PlainRulesController;
@@ -45,6 +46,7 @@ class SchemaGenerationTest extends TestCase
         $router->post('api/nested-json', [UserController::class, 'nestedJson']);
         $router->post('api/map-rules', [UserController::class, 'mapRules']);
         $router->get('api/filter-array', FilterArrayAction::class);
+        $router->get('api/handle-query', HandleQueryAction::class);
         $router->get('api/typed-filters', TypedFilterAction::class);
         $router->post('api/date-rule-body', [UserController::class, 'dateRuleBody']);
         $router->get('api/date-rule-query', [UserController::class, 'dateRuleQuery']);
@@ -535,6 +537,16 @@ class SchemaGenerationTest extends TestCase
         $this->assertStringContainsString('`balance`', $description);
         $this->assertStringNotContainsString('`x`', $description);
         $this->assertNotNull($parameters->firstWhere('name', 'filter[search]'));
+    }
+
+    #[Test]
+    public function query_builder_in_an_action_handle_method_is_documented(): void
+    {
+        $parameters = collect($this->generate()['paths']['/handle-query']['get']['parameters'])->keyBy('name');
+
+        $this->assertArrayHasKey('filter[name]', $parameters->all());
+        $this->assertStringContainsString('`created_at`', $parameters['sort']['description']);
+        $this->assertStringContainsString('`name`', $parameters['sort']['description']);
     }
 
     #[Test]

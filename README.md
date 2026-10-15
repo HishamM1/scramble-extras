@@ -38,7 +38,7 @@ Everything below is on top of upstream `pjadanowski/scramble-extras`.
 - **Pagination query params** — `GET` routes returning a `PaginatedDataCollection` or `PaginatedListResponse` get a `page` parameter; cursor collections get a `cursor` parameter. Skipped when the route already declares one (e.g. `page[size]` from `jsonPaginate()`).
 - **Query parameters from `Data`** — on bodyless methods (`GET`, `DELETE`) a `Data` parameter is documented as query parameters instead of a request body.
 - **Return-type inference** — `Data::toResponse()` and custom static constructors on `Data` classes resolve to the right response schema.
-- **Query builder** — usage is detected inside custom `QueryBuilder` subclasses (including resolving the model from them), and array and boolean filters are typed. Detection is limited to the route method and the methods it calls, so unrelated query builders elsewhere in the class are ignored.
+- **Query builder** — usage is detected inside custom `QueryBuilder` subclasses (including resolving the model from them), and array and boolean filters are typed. Detection covers the route method and the methods it calls (including an action's `handle()` called from `asController`), so unrelated query builders elsewhere in the class are ignored.
 
 ### Fixed
 

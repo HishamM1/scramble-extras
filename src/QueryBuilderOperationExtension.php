@@ -56,7 +56,10 @@ class QueryBuilderOperationExtension extends OperationExtension
         $traverser->addVisitor($finder);
         $traverser->traverse($methodNode->stmts);
 
-        $usages = $finder->found ? [$finder] : $this->customQueryUsages($routeInfo);
+        $usages = $finder->found ? [$finder] : $this->calledMethodUsages($routeInfo, $resolver);
+        if ($usages === []) {
+            $usages = $this->customQueryUsages($routeInfo);
+        }
 
         foreach ($usages as $usage) {
             $params = array_values(array_filter(
@@ -179,14 +182,68 @@ class QueryBuilderOperationExtension extends OperationExtension
     {
         $traverser = new NodeTraverser;
         $traverser->addVisitor(new NameResolver);
-        $nodes = $traverser->traverse($this->parse($file));
+        $methods = $this->classMethods($traverser->traverse($this->parse($file)));
 
+        $classes = [];
+        foreach ($this->reachableMethodNames($methods, $methodName) as $name) {
+            foreach ((new NodeFinder)->findInstanceOf($methods[$name]->stmts ?? [], New_::class) as $node) {
+                if ($node->class instanceof Name) {
+                    $class = $node->class->toString();
+                    if (class_exists($class) && is_subclass_of($class, QueryBuilder::class)) {
+                        $classes[$class] = true;
+                    }
+                }
+            }
+        }
+
+        return array_keys($classes);
+    }
+
+    /**
+     * @return QueryBuilderUsageVisitor[]
+     */
+    protected function calledMethodUsages(RouteInfo $routeInfo, ?FileNameResolver $resolver): array
+    {
+        $reflection = $routeInfo->reflectionMethod();
+        $file = $reflection?->getDeclaringClass()->getFileName();
+        if (! $file) {
+            return [];
+        }
+
+        $methods = $this->classMethods($this->parse($file));
+        $finder = new QueryBuilderUsageVisitor($resolver);
+        $traverser = new NodeTraverser;
+        $traverser->addVisitor($finder);
+
+        foreach ($this->reachableMethodNames($methods, $reflection->getName()) as $name) {
+            if ($name !== $reflection->getName()) {
+                $traverser->traverse($methods[$name]->stmts ?? []);
+            }
+        }
+
+        return $finder->found ? [$finder] : [];
+    }
+
+    /**
+     * @param  Node[]  $nodes
+     * @return array<string, ClassMethod>
+     */
+    protected function classMethods(array $nodes): array
+    {
         $methods = [];
         foreach ((new NodeFinder)->findInstanceOf($nodes, ClassMethod::class) as $method) {
             $methods[$method->name->toString()] ??= $method;
         }
 
-        $classes = [];
+        return $methods;
+    }
+
+    /**
+     * @param  array<string, ClassMethod>  $methods
+     * @return string[]
+     */
+    protected function reachableMethodNames(array $methods, string $methodName): array
+    {
         $visited = [];
         $queue = [$methodName];
 
@@ -197,20 +254,13 @@ class QueryBuilderOperationExtension extends OperationExtension
             }
             $visited[$name] = true;
 
-            foreach ((new NodeFinder)->find($methods[$name]->stmts ?? [], fn (Node $node) => true) as $node) {
-                if ($node instanceof New_ && $node->class instanceof Name) {
-                    $class = $node->class->toString();
-                    if (class_exists($class) && is_subclass_of($class, QueryBuilder::class)) {
-                        $classes[$class] = true;
-                    }
-                } elseif (($node instanceof MethodCall || $node instanceof StaticCall) && $node->name instanceof Identifier) {
-                    $called = $node->name->toString();
-                    $queue[] = $called === 'run' ? 'handle' : $called;
-                }
+            foreach ((new NodeFinder)->find($methods[$name]->stmts ?? [], fn (Node $node) => ($node instanceof MethodCall || $node instanceof StaticCall) && $node->name instanceof Identifier) as $node) {
+                $called = $node->name->toString();
+                $queue[] = $called === 'run' ? 'handle' : $called;
             }
         }
 
-        return array_keys($classes);
+        return array_keys($visited);
     }
 
     /**
