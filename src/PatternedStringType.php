@@ -19,9 +19,18 @@ class PatternedStringType extends StringType
         return $this;
     }
 
-    public function toArray()
+    public function serializeAs31(): mixed
     {
-        $array = parent::toArray();
+        return $this->withPattern(parent::serializeAs31());
+    }
+
+    public function serializeAs32(): mixed
+    {
+        return $this->withPattern(parent::serializeAs32());
+    }
+
+    private function withPattern(array $array): array
+    {
 
         if ($this->pattern !== null) {
             $array['pattern'] = $this->pattern;

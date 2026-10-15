@@ -54,7 +54,7 @@ Everything below is on top of upstream `pjadanowski/scramble-extras`.
 
 - PHP 8.2+
 - Laravel 11, 12, or 13
-- `dedoc/scramble` ^0.12.20
+- `dedoc/scramble` ^0.13.48
 
 ## Install
 

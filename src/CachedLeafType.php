@@ -10,6 +10,16 @@ trait CachedLeafType
 
     private array $initial = [];
 
+    public function serializeAs31(): mixed
+    {
+        return $this->toArray();
+    }
+
+    public function serializeAs32(): mixed
+    {
+        return $this->toArray();
+    }
+
     private function hydrate(array $cachedArray): void
     {
         $this->cachedArray = $cachedArray;
@@ -21,7 +31,7 @@ trait CachedLeafType
         $this->deprecated = $cachedArray['deprecated'] ?? false;
         $this->pattern = $cachedArray['pattern'] ?? null;
         $this->enum = $cachedArray['enum'] ?? [];
-        $this->const = $cachedArray['const'] ?? null;
+        $this->const = array_key_exists('const', $cachedArray) ? $cachedArray['const'] : new MissingValue;
         $this->default = array_key_exists('default', $cachedArray) ? $cachedArray['default'] : new MissingValue;
         $this->examples = $cachedArray['examples'] ?? [];
         $this->nullable = is_array($cachedArray['type'] ?? null) && in_array('null', $cachedArray['type'], true)
@@ -66,7 +76,7 @@ trait CachedLeafType
                 continue;
             }
 
-            if ($current[$field] === '' || $current[$field] === [] || $current[$field] === null || $current[$field] === false) {
+            if ($current[$field] === '' || $current[$field] === [] || $current[$field] === null || $current[$field] === false || $current[$field] instanceof MissingValue) {
                 unset($result[$field]);
             } else {
                 $result[$field] = $current[$field];

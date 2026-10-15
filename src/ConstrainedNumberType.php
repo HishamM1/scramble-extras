@@ -37,9 +37,19 @@ class ConstrainedNumberType extends NumberType
         return $this;
     }
 
-    public function toArray()
+    public function serializeAs31(): mixed
     {
-        return array_merge(parent::toArray(), array_filter([
+        return $this->withConstraints(parent::serializeAs31());
+    }
+
+    public function serializeAs32(): mixed
+    {
+        return $this->withConstraints(parent::serializeAs32());
+    }
+
+    private function withConstraints(array $array): array
+    {
+        return array_merge($array, array_filter([
             'exclusiveMinimum' => $this->exclusiveMin,
             'exclusiveMaximum' => $this->exclusiveMax,
             'multipleOf' => $this->multipleOf,
