@@ -19,6 +19,7 @@ use PawelJadanowski\ScrambleExtras\Tests\Fixtures\OtherApiAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\PlainRulesController;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RequestAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RulesAction;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\StatusEnum;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\TypedFilterAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UpdateUserAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UserController;
@@ -31,6 +32,7 @@ class SchemaGenerationTest extends TestCase
     protected function defineRoutes($router): void
     {
         /** @var Router $router */
+        $router->pattern('locale', 'en|ar');
         $router->post('api/request-action', RequestAction::class);
         $router->get('api/excluded-action', ExcludedAction::class);
         $router->get('api/other-api-action', OtherApiAction::class);
@@ -68,8 +70,22 @@ class SchemaGenerationTest extends TestCase
         $router->get('api/any-of-class-level', [AnyOfClassLevelController::class, 'index']);
         $router->post('api/any-of-created', [UserController::class, 'anyOfCreated']);
         $router->post('api/users', [UserController::class, 'store']);
+        $router->get('api/where-in/{kind}', [UserController::class, 'kind'])->whereIn('kind', ['alpha', 'beta_two']);
+        $router->get('api/where-in-enum/{kind}', [UserController::class, 'kind'])->whereIn('kind', [StatusEnum::Active, StatusEnum::Pending]);
+        $router->get('api/where-regex/{id}', [UserController::class, 'show'])->where('id', '[0-9]+');
+        $router->get('api/where-in-ref/{status}', [UserController::class, 'byStatus'])->whereIn('status', ['active', 'pending']);
+        $router->get('api/where-in-two/{org}/{kind}', [UserController::class, 'twoParams'])->whereIn('kind', ['alpha', 'beta']);
+        $router->get('api/where-in-renamed/{slug}', [UserController::class, 'kind'])->whereIn('slug', ['alpha', 'beta']);
+        $router->get('api/where-in-int/{id}', [UserController::class, 'show'])->whereIn('id', [1, 2]);
+        $router->get('api/where-in-default/{kind?}', [UserController::class, 'withDefault'])->whereIn('kind', ['alpha', 'beta']);
+        $router->get('api/where-in-attr/{org}/{kind}', [UserController::class, 'attributedParams'])->whereIn('kind', ['alpha', 'beta']);
+        $router->domain('{tenant}.example.com')->get('api/where-in-domain/{kind}', [UserController::class, 'kind'])->whereIn('kind', ['alpha', 'beta']);
+        $router->get('api/where-in-int-lead/{id}', [UserController::class, 'show'])->whereIn('id', ['007', '010']);
+        $router->get('api/where-in-int-ok/{id}', [UserController::class, 'show'])->whereIn('id', ['1', '2']);
         $router->get('api/any-of-class-level-empty', [AnyOfClassLevelController::class, 'empty']);
         $router->get('api/any-of-described', [UserController::class, 'anyOfDescribed']);
+        $router->get('api/locale-pattern/{lang}', [UserController::class, 'byLocale']);
+        $router->get('api/ref-plain/{status}', [UserController::class, 'byStatus']);
         $router->get('api/users', [UserController::class, 'index']);
         $router->get('api/users-custom-query', [UserController::class, 'customQuery']);
         $router->get('api/users/search', [UserController::class, 'search']);
@@ -316,6 +332,77 @@ class SchemaGenerationTest extends TestCase
                 ['$ref' => '#/components/schemas/UserData'],
             ],
         ], $schema);
+    }
+
+    private function pathParameterSchema(string $path, string $name): array
+    {
+        foreach ($this->generate()['paths'][$path]['get']['parameters'] as $parameter) {
+            if ($parameter['in'] === 'path' && $parameter['name'] === $name) {
+                return $parameter['schema'];
+            }
+        }
+
+        $this->fail("Path parameter {$name} not found on {$path}");
+    }
+
+    #[Test]
+    public function where_in_constraints_become_path_parameter_enums(): void
+    {
+        $this->assertSame(['type' => 'string', 'enum' => ['alpha', 'beta_two']], $this->pathParameterSchema('/where-in/{kind}', 'kind'));
+        $this->assertSame(['type' => 'string', 'enum' => ['active', 'pending']], $this->pathParameterSchema('/where-in-enum/{kind}', 'kind'));
+        $this->assertSame(['type' => 'string', 'enum' => ['active', 'pending']], $this->pathParameterSchema('/where-in-ref/{status}', 'status'));
+        $this->assertSame(['$ref' => '#/components/schemas/StatusEnum'], $this->pathParameterSchema('/ref-plain/{status}', 'status'));
+        $this->assertSame(['type' => 'integer'], $this->pathParameterSchema('/where-regex/{id}', 'id'));
+    }
+
+    #[Test]
+    public function where_in_only_narrows_the_matching_path_parameter(): void
+    {
+        $this->assertSame(['type' => 'string'], $this->pathParameterSchema('/where-in-two/{org}/{kind}', 'org'));
+        $this->assertSame(['type' => 'string', 'enum' => ['alpha', 'beta']], $this->pathParameterSchema('/where-in-two/{org}/{kind}', 'kind'));
+    }
+
+    #[Test]
+    public function where_in_matches_the_scramble_parameter_name_when_the_argument_name_differs(): void
+    {
+        $this->assertSame(['type' => 'string', 'enum' => ['alpha', 'beta']], $this->pathParameterSchema('/where-in-renamed/{kind}', 'kind'));
+    }
+
+    #[Test]
+    public function where_in_ignores_patterns_for_names_not_in_the_uri(): void
+    {
+        $this->assertSame(['type' => 'string'], $this->pathParameterSchema('/locale-pattern/{locale}', 'locale'));
+    }
+
+    #[Test]
+    public function where_in_survives_path_parameter_attributes(): void
+    {
+        $this->assertSame(['type' => 'string', 'enum' => ['alpha', 'beta']], $this->pathParameterSchema('/where-in-attr/{org}/{kind}', 'kind'));
+    }
+
+    #[Test]
+    public function where_in_works_on_routes_with_a_domain_parameter(): void
+    {
+        $this->assertSame(['type' => 'string', 'enum' => ['alpha', 'beta']], $this->pathParameterSchema('/where-in-domain/{kind}', 'kind'));
+    }
+
+    #[Test]
+    public function where_in_only_casts_canonical_integers(): void
+    {
+        $this->assertSame(['type' => 'integer'], $this->pathParameterSchema('/where-in-int-lead/{id}', 'id'));
+        $this->assertSame(['type' => 'integer', 'enum' => [1, 2]], $this->pathParameterSchema('/where-in-int-ok/{id}', 'id'));
+    }
+
+    #[Test]
+    public function where_in_keeps_the_integer_type_with_integer_values(): void
+    {
+        $this->assertSame(['type' => 'integer', 'enum' => [1, 2]], $this->pathParameterSchema('/where-in-int/{id}', 'id'));
+    }
+
+    #[Test]
+    public function where_in_preserves_the_parameter_default(): void
+    {
+        $this->assertSame(['type' => 'string', 'enum' => ['alpha', 'beta'], 'default' => 'beta'], $this->pathParameterSchema('/where-in-default/{kind}', 'kind'));
     }
 
     #[Test]

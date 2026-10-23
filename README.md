@@ -45,6 +45,7 @@ Everything below is on top of upstream `pjadanowski/scramble-extras`.
   #[ResponseAnyOf([DashboardWidget::class, 'dataClasses'])]
   ```
 
+- **`whereIn` route constraints** — `Route::whereIn('kind', ['a', 'b'])` (including backed enum cases) becomes an inline enum on the matching path parameter, keeping its type (string or integer) and default. Only literal `a|b|c` patterns, as produced by `whereIn`, are handled; other `where` patterns are left alone.
 - **Query builder** — usage is detected inside custom `QueryBuilder` subclasses (including resolving the model from them), and array and boolean filters are typed. Detection covers the route method and the methods it calls (including an action's `handle()` called from `asController`), so unrelated query builders elsewhere in the class are ignored.
 
 ### Fixed

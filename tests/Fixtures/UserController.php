@@ -2,6 +2,7 @@
 
 namespace PawelJadanowski\ScrambleExtras\Tests\Fixtures;
 
+use Dedoc\Scramble\Attributes\PathParameter;
 use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -38,6 +39,31 @@ class UserController
         return UserData::from([]);
     }
 
+    public function kind(string $kind): array
+    {
+        return [];
+    }
+
+    public function twoParams(string $org, string $kind): array
+    {
+        return [];
+    }
+
+    public function attributedParams(#[PathParameter('org', description: 'Organisation')] string $org, string $kind): array
+    {
+        return [];
+    }
+
+    public function withDefault(string $kind = 'beta'): array
+    {
+        return [];
+    }
+
+    public function byStatus(StatusEnum $status): array
+    {
+        return [];
+    }
+
     #[ResponseAnyOf([UserData::class, AddressData::class])]
     public function anyOfCreated(Request $request)
     {
@@ -48,6 +74,11 @@ class UserController
     public function anyOfDescribed(): UserData
     {
         return UserData::from([]);
+    }
+
+    public function byLocale(string $locale): array
+    {
+        return [];
     }
 
     public function store(UserData $data): UserData
