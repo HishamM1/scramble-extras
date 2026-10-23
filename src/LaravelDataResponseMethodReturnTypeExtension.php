@@ -4,12 +4,16 @@ namespace PawelJadanowski\ScrambleExtras;
 
 use Dedoc\Scramble\Infer\Extensions\Event\MethodCallEvent;
 use Dedoc\Scramble\Infer\Extensions\MethodReturnTypeExtension;
+use Dedoc\Scramble\Support\Type\ArrayType;
 use Dedoc\Scramble\Support\Type\Generic;
 use Dedoc\Scramble\Support\Type\KeyedArrayType;
 use Dedoc\Scramble\Support\Type\Literal\LiteralIntegerType;
+use Dedoc\Scramble\Support\Type\MixedType;
 use Dedoc\Scramble\Support\Type\ObjectType;
+use Dedoc\Scramble\Support\Type\StringType;
 use Dedoc\Scramble\Support\Type\Type;
 use Illuminate\Http\JsonResponse;
+use ReflectionClass;
 use Spatie\LaravelData\Contracts\BaseData;
 use Spatie\LaravelData\CursorPaginatedDataCollection;
 use Spatie\LaravelData\DataCollection;
@@ -31,8 +35,12 @@ class LaravelDataResponseMethodReturnTypeExtension implements MethodReturnTypeEx
             return null;
         }
 
+        $instance = $event->getInstance();
+
         return new Generic(JsonResponse::class, [
-            $event->getInstance(),
+            (new ReflectionClass($instance->name))->isInstantiable()
+                ? $instance
+                : new ArrayType(new MixedType, new StringType),
             new LiteralIntegerType(200),
             new KeyedArrayType,
         ]);

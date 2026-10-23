@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use PawelJadanowski\ScrambleExtras\PaginatedListResponse;
 use Spatie\LaravelData\CursorPaginatedDataCollection;
+use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
 use Spatie\LaravelData\PaginatedDataCollection;
 use Spatie\QueryBuilder\AllowedFilter;
@@ -17,6 +18,11 @@ class UserController
     public function show(int $id): UserData
     {
         return UserData::from(['id' => $id]);
+    }
+
+    public function anyData(string $class): Data
+    {
+        return $class::from([]);
     }
 
     public function store(UserData $data): UserData

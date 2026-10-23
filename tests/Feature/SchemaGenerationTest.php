@@ -58,6 +58,7 @@ class SchemaGenerationTest extends TestCase
         $router->post('api/ruled', [UserController::class, 'ruled']);
         $router->post('api/dates', [UserController::class, 'dates']);
         $router->get('api/users/{id}', [UserController::class, 'show']);
+        $router->get('api/any-data/{class}', [UserController::class, 'anyData']);
         $router->post('api/users', [UserController::class, 'store']);
         $router->get('api/users', [UserController::class, 'index']);
         $router->get('api/users-custom-query', [UserController::class, 'customQuery']);
@@ -267,6 +268,14 @@ class SchemaGenerationTest extends TestCase
         $schema = $this->resolveRef($this->generate()['paths']['/tree']['post']['requestBody']['content']['application/json']['schema']);
 
         $this->assertArrayHasKey('children', $schema['properties']);
+    }
+
+    #[Test]
+    public function base_data_return_type_exports_without_recursing_forever(): void
+    {
+        $operation = $this->generate()['paths']['/any-data/{class}']['get'];
+
+        $this->assertSame('object', $operation['responses']['200']['content']['application/json']['schema']['type'] ?? null);
     }
 
     #[Test]
