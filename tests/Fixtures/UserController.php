@@ -6,6 +6,7 @@ use Dedoc\Scramble\Attributes\QueryParameter;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use PawelJadanowski\ScrambleExtras\PaginatedListResponse;
+use PawelJadanowski\ScrambleExtras\ResponseAnyOf;
 use Spatie\LaravelData\CursorPaginatedDataCollection;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
@@ -23,6 +24,30 @@ class UserController
     public function anyData(string $class): Data
     {
         return $class::from([]);
+    }
+
+    #[ResponseAnyOf([UserData::class, AddressData::class, UserData::class])]
+    public function anyOfData(): Data
+    {
+        return UserData::from([]);
+    }
+
+    #[ResponseAnyOf([AnyOfClasses::class, 'dataClasses'])]
+    public function anyOfCallable(): Data
+    {
+        return UserData::from([]);
+    }
+
+    #[ResponseAnyOf([UserData::class, AddressData::class])]
+    public function anyOfCreated(Request $request)
+    {
+        return UserData::from(['id' => 1])->toResponse($request)->setStatusCode(201);
+    }
+
+    #[ResponseAnyOf([UserData::class, AddressData::class])]
+    public function anyOfDescribed(): UserData
+    {
+        return UserData::from([]);
     }
 
     public function store(UserData $data): UserData

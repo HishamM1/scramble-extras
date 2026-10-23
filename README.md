@@ -38,6 +38,13 @@ Everything below is on top of upstream `pjadanowski/scramble-extras`.
 - **Pagination query params** — `GET` routes returning a `PaginatedDataCollection` or `PaginatedListResponse` get a `page` parameter; cursor collections get a `cursor` parameter. Skipped when the route already declares one (e.g. `page[size]` from `jsonPaginate()`).
 - **Query parameters from `Data`** — on bodyless methods (`GET`, `DELETE`) a `Data` parameter is documented as query parameters instead of a request body.
 - **Return-type inference** — `Data::toResponse()` and custom static constructors on `Data` classes resolve to the right response schema.
+- **`#[ResponseAnyOf]`** — for an endpoint that returns the abstract `Data` (e.g. one route dispatching to several actions), list the concrete `Data` classes on the route method (for laravel-actions, `asController`) or on the class itself (a class-level attribute applies to every route method in that class), and the first `2xx` response (ignoring `204` and `205`; a new `200` is added only if the route has no response at all besides those) becomes an `anyOf` of their `$ref`s, each registered as a component. The attribute is not inherited from parent classes. Pass the classes directly or a static callable that returns them; duplicates are dropped, and an empty list, a missing class or a non-`Data` class throws `InvalidArgumentException`:
+
+  ```php
+  #[ResponseAnyOf([UserData::class, AddressData::class])]
+  #[ResponseAnyOf([DashboardWidget::class, 'dataClasses'])]
+  ```
+
 - **Query builder** — usage is detected inside custom `QueryBuilder` subclasses (including resolving the model from them), and array and boolean filters are typed. Detection covers the route method and the methods it calls (including an action's `handle()` called from `asController`), so unrelated query builders elsewhere in the class are ignored.
 
 ### Fixed

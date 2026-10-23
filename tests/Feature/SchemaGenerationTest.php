@@ -4,7 +4,10 @@ namespace PawelJadanowski\ScrambleExtras\Tests\Feature;
 
 use Dedoc\Scramble\Generator;
 use Illuminate\Routing\Router;
+use PawelJadanowski\ScrambleExtras\ResponseAnyOf;
 use PawelJadanowski\ScrambleExtras\SchemaCache;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\AnyOfClasses;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\AnyOfClassLevelController;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\AuthorizeAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\ExcludedAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\ExplicitMethodAction;
@@ -19,6 +22,7 @@ use PawelJadanowski\ScrambleExtras\Tests\Fixtures\RulesAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\TypedFilterAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UpdateUserAction;
 use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UserController;
+use PawelJadanowski\ScrambleExtras\Tests\Fixtures\UserData;
 use PHPUnit\Framework\Attributes\Test;
 use PawelJadanowski\ScrambleExtras\Tests\TestCase;
 
@@ -59,7 +63,13 @@ class SchemaGenerationTest extends TestCase
         $router->post('api/dates', [UserController::class, 'dates']);
         $router->get('api/users/{id}', [UserController::class, 'show']);
         $router->get('api/any-data/{class}', [UserController::class, 'anyData']);
+        $router->get('api/any-of-data', [UserController::class, 'anyOfData']);
+        $router->get('api/any-of-callable', [UserController::class, 'anyOfCallable']);
+        $router->get('api/any-of-class-level', [AnyOfClassLevelController::class, 'index']);
+        $router->post('api/any-of-created', [UserController::class, 'anyOfCreated']);
         $router->post('api/users', [UserController::class, 'store']);
+        $router->get('api/any-of-class-level-empty', [AnyOfClassLevelController::class, 'empty']);
+        $router->get('api/any-of-described', [UserController::class, 'anyOfDescribed']);
         $router->get('api/users', [UserController::class, 'index']);
         $router->get('api/users-custom-query', [UserController::class, 'customQuery']);
         $router->get('api/users/search', [UserController::class, 'search']);
@@ -276,6 +286,123 @@ class SchemaGenerationTest extends TestCase
         $operation = $this->generate()['paths']['/any-data/{class}']['get'];
 
         $this->assertSame('object', $operation['responses']['200']['content']['application/json']['schema']['type'] ?? null);
+    }
+
+    #[Test]
+    public function response_any_of_documents_data_union_as_any_of(): void
+    {
+        $openApi = $this->generate();
+        $schema = $openApi['paths']['/any-of-data']['get']['responses']['200']['content']['application/json']['schema'];
+
+        $this->assertSame([
+            'anyOf' => [
+                ['$ref' => '#/components/schemas/UserData'],
+                ['$ref' => '#/components/schemas/AddressData'],
+            ],
+        ], $schema);
+        $this->assertArrayHasKey('UserData', $openApi['components']['schemas']);
+        $this->assertArrayHasKey('AddressData', $openApi['components']['schemas']);
+    }
+
+    #[Test]
+    public function response_any_of_accepts_a_callable_class_list(): void
+    {
+        $openApi = $this->generate();
+        $schema = $openApi['paths']['/any-of-callable']['get']['responses']['200']['content']['application/json']['schema'];
+
+        $this->assertSame([
+            'anyOf' => [
+                ['$ref' => '#/components/schemas/AddressData'],
+                ['$ref' => '#/components/schemas/UserData'],
+            ],
+        ], $schema);
+    }
+
+    #[Test]
+    public function response_any_of_can_be_declared_on_the_class(): void
+    {
+        $schema = $this->generate()['paths']['/any-of-class-level']['get']['responses']['200']['content']['application/json']['schema'];
+
+        $this->assertSame([
+            'anyOf' => [
+                ['$ref' => '#/components/schemas/UserData'],
+                ['$ref' => '#/components/schemas/AddressData'],
+            ],
+        ], $schema);
+    }
+
+    #[Test]
+    public function response_any_of_targets_the_existing_2xx_response(): void
+    {
+        $responses = $this->generate()['paths']['/any-of-created']['post']['responses'];
+
+        $this->assertArrayHasKey('201', $responses);
+        $this->assertArrayNotHasKey('200', $responses);
+        $this->assertSame([
+            'anyOf' => [
+                ['$ref' => '#/components/schemas/UserData'],
+                ['$ref' => '#/components/schemas/AddressData'],
+            ],
+        ], $responses['201']['content']['application/json']['schema']);
+    }
+
+    #[Test]
+    public function response_any_of_leaves_no_content_responses_alone(): void
+    {
+        $responses = $this->generate()['paths']['/any-of-class-level-empty']['get']['responses'];
+
+        $this->assertArrayHasKey('204', $responses);
+        $this->assertArrayNotHasKey('200', $responses);
+        $this->assertArrayNotHasKey('content', $responses['204']);
+    }
+
+    #[Test]
+    public function response_any_of_clears_the_inferred_description(): void
+    {
+        $response = $this->generate()['paths']['/any-of-described']['get']['responses']['200'];
+
+        $this->assertArrayHasKey('description', $response);
+        $this->assertSame('', $response['description']);
+    }
+
+    #[Test]
+    public function response_any_of_rejects_a_callable_returning_a_non_array(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ResponseAnyOf([AnyOfClasses::class, 'collection']))->resolve();
+    }
+
+    #[Test]
+    public function response_any_of_rejects_non_string_entries_with_invalid_argument(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ResponseAnyOf([UserData::class, new \stdClass]))->resolve();
+    }
+
+    #[Test]
+    public function response_any_of_rejects_an_empty_list(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ResponseAnyOf([]))->resolve();
+    }
+
+    #[Test]
+    public function response_any_of_rejects_missing_and_non_data_classes(): void
+    {
+        try {
+            (new ResponseAnyOf([UserData::class, 'App\\Missing\\Thing']))->resolve();
+            $this->fail('Expected exception for a missing class.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('App\\Missing\\Thing', $e->getMessage());
+        }
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage(\stdClass::class);
+
+        (new ResponseAnyOf([UserData::class, \stdClass::class]))->resolve();
     }
 
     #[Test]
